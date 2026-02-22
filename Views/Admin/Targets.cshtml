@@ -1,0 +1,143 @@
+@{
+    ViewData["Title"] = "Targets & Progress";
+    Layout = "_AdminLayout";
+    var users = ViewBag.Users as List<StudyTracker.Models.ViewModels.AdminUserViewModel> ?? new List<StudyTracker.Models.ViewModels.AdminUserViewModel>();
+    var userTargets = ViewBag.UserTargets as List<StudyTracker.Models.ViewModels.AdminUserTargetViewModel> ?? new List<StudyTracker.Models.ViewModels.AdminUserTargetViewModel>();
+    var selectedUserId = ViewBag.SelectedUserId as string;
+    var weekStart = ViewBag.WeekStart as DateOnly?;
+    var weekEnd = ViewBag.WeekEnd as DateOnly?;
+}
+
+<!-- Header -->
+<header class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div>
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Targets & Progress</h2>
+        <p class="text-slate-500 dark:text-slate-400 mt-1">View weekly targets and progress for all users.</p>
+    </div>
+    @if (weekStart.HasValue && weekEnd.HasValue)
+    {
+        <div class="text-sm text-slate-600 dark:text-slate-400">
+            <span class="font-medium">Week:</span> @weekStart.Value.ToString("MMM dd") - @weekEnd.Value.ToString("MMM dd, yyyy")
+        </div>
+    }
+</header>
+
+<!-- Filter Form -->
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+    <form method="get" class="flex gap-4">
+        <div class="flex-1">
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">User</label>
+            <select name="userId" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-2 focus:border-primary focus:ring-primary focus:ring-1">
+                <option value="">All Users with Targets</option>
+                @foreach (var user in users)
+                {
+                    <option value="@user.Id" selected="@(selectedUserId == user.Id)">@user.FullName</option>
+                }
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-colors">
+                Filter
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Targets Table -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col">
+    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white">User Targets & Progress (@userTargets.Count)</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">
+                    <th class="px-6 py-4">User</th>
+                    <th class="px-6 py-4">Daily Target</th>
+                    <th class="px-6 py-4">Today Progress</th>
+                    <th class="px-6 py-4">Weekly Progress</th>
+                    <th class="px-6 py-4">Streak</th>
+                    <th class="px-6 py-4">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                @foreach (var target in userTargets)
+                {
+                    var dailyTargetHours = (target.DailyTargetMinutes ?? 0) / 60.0;
+                    var todayDoneHours = target.TodayDoneMinutes / 60.0;
+                    var todayProgress = target.TodayProgressPercentage;
+                    var weeklyProgress = target.WeeklyProgressPercentage ?? 0;
+                    var streak = target.StreakDays;
+                    var isAchieved = target.IsTodayAchieved;
+                    
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div>
+                                <span class="font-medium text-slate-900 dark:text-white">@target.UserName</span>
+                                <p class="text-xs text-slate-500 dark:text-slate-400">@target.Email</p>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="text-slate-900 dark:text-white font-medium">@dailyTargetHours.ToString("F1")h</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-col gap-1">
+                                <span class="text-sm font-medium text-slate-900 dark:text-white">@todayDoneHours.ToString("F1")h / @dailyTargetHours.ToString("F1")h</span>
+                                <div class="w-32 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary rounded-full transition-all" style="width: @(Math.Min(todayProgress, 100))%"></div>
+                                </div>
+                                <span class="text-xs text-slate-500 dark:text-slate-400">@todayProgress.ToString("F0")%</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            @if (target.WeeklyTotalMinutes.HasValue && target.WeeklyTargetMinutes.HasValue)
+                            {
+                                var weeklyTotal = target.WeeklyTotalMinutes.Value / 60.0;
+                                var weeklyTarget = target.WeeklyTargetMinutes.Value / 60.0;
+                                <div class="flex flex-col gap-1">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-white">@weeklyTotal.ToString("F1")h / @weeklyTarget.ToString("F1")h</span>
+                                    <div class="w-32 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                        <div class="h-full bg-blue-500 rounded-full transition-all" style="width: @(Math.Min(weeklyProgress, 100))%"></div>
+                                    </div>
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">@weeklyProgress.ToString("F0")%</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="text-slate-400 dark:text-slate-500 text-sm">No data</span>
+                            }
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+                                <span class="material-symbols-outlined text-sm">local_fire_department</span>
+                                @streak days
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            @if (isAchieved)
+                            {
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                    Achieved
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                                    In Progress
+                                </span>
+                            }
+                        </td>
+                    </tr>
+                }
+                @if (userTargets.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                            No targets found. Users need to set up their weekly targets first.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

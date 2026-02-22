@@ -1,0 +1,84 @@
+@{
+    ViewData["Title"] = "Weekly Progress";
+    Layout = "_UserLayout";
+    var progress = ViewBag.Progress as StudyTracker.Models.ViewModels.WeeklyProgressViewModel;
+    var userName = ViewBag.UserName as string ?? "User";
+}
+
+<main class="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Weekly Progress</h1>
+            <p class="text-slate-500 dark:text-slate-400 mt-1">Week of @progress?.WeekStartDate.ToString("MMM dd, yyyy")</p>
+        </div>
+        <a asp-action="Index" class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-primary transition-colors">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            <span>Back to Target</span>
+        </a>
+    </div>
+    
+    @if (progress != null && progress.Days.Any())
+    {
+        <!-- Summary Card -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Achieved Days</p>
+                    <p class="text-3xl font-bold text-slate-900 dark:text-white">@progress.AchievedDaysCount / 7</p>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Weekly Completion</p>
+                    <p class="text-3xl font-bold text-primary">@progress.WeeklyCompletionPercentage.ToString("F0")%</p>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Daily Target</p>
+                    <p class="text-3xl font-bold text-slate-900 dark:text-white">@(progress.DailyTargetMinutes / 60)h</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Weekly Table -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">Daily Breakdown</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/50 dark:bg-slate-800/30 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold tracking-wider">
+                            <th class="px-6 py-4">Day</th>
+                            <th class="px-6 py-4">Studied</th>
+                            <th class="px-6 py-4">Target</th>
+                            <th class="px-6 py-4 text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-sm divide-y divide-slate-100 dark:divide-slate-800">
+                        @foreach (var day in progress.Days)
+                        {
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                <td class="px-6 py-4 font-medium text-slate-900 dark:text-white">@day.DayName</td>
+                                <td class="px-6 py-4 text-slate-600 dark:text-slate-300">@day.Hours.ToString("F1")h</td>
+                                <td class="px-6 py-4 text-slate-600 dark:text-slate-300">@day.TargetHours.ToString("F1")h</td>
+                                <td class="px-6 py-4 text-right">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium @(day.IsAchieved ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400")">
+                                        @(day.IsAchieved ? "✅ Achieved" : "❌ Not Achieved")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-12 text-center">
+            <p class="text-slate-500 dark:text-slate-400">No target set for this week. Set a target to track your progress.</p>
+            <a asp-action="Setup" class="inline-flex items-center gap-2 mt-4 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                <span class="material-symbols-outlined text-[18px]">add</span>
+                <span>Set Target</span>
+            </a>
+        </div>
+    }
+</main>

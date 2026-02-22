@@ -1,0 +1,78 @@
+@model StudyTracker.Models.ViewModels.LoginViewModel
+@{
+    ViewData["Title"] = "Login";
+    Layout = "_AuthLayout";
+}
+
+<div class="w-full max-w-[480px] p-6 sm:p-10">
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none border border-slate-100 dark:border-slate-700 p-8 sm:p-12">
+        <!-- Header Section -->
+        <div class="flex flex-col items-center justify-center mb-8 text-center">
+            <div class="size-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4 text-primary">
+                <span class="material-symbols-outlined text-3xl">school</span>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white mb-2">Welcome Back</h1>
+            <p class="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-normal">Enter your details to access your study plan.</p>
+        </div>
+        
+        <!-- Login Form -->
+        <form asp-action="Login" method="post" class="flex flex-col gap-5">
+            <div asp-validation-summary="ModelOnly" class="text-red-500 text-sm"></div>
+            <input type="hidden" asp-for="ReturnUrl" />
+            
+            <!-- Email Field -->
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-medium text-slate-900 dark:text-slate-200 ml-1" asp-for="Email">Email</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                        <span class="material-symbols-outlined text-[20px]">mail</span>
+                    </div>
+                    <input asp-for="Email" class="form-input block w-full rounded-xl border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-primary focus:ring-1 h-12 sm:h-14 pl-11 text-base transition-colors duration-200" placeholder="student@example.com" />
+                    <span asp-validation-for="Email" class="text-red-500 text-xs mt-1"></span>
+                </div>
+            </div>
+            
+            <!-- Password Field -->
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between items-center ml-1">
+                    <label class="text-sm font-medium text-slate-900 dark:text-slate-200" asp-for="Password">Password</label>
+                </div>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                        <span class="material-symbols-outlined text-[20px]">lock</span>
+                    </div>
+                    <input asp-for="Password" class="form-input block w-full rounded-xl border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-primary focus:ring-1 h-12 sm:h-14 pl-11 text-base transition-colors duration-200" placeholder="••••••••" />
+                    <span asp-validation-for="Password" class="text-red-500 text-xs mt-1"></span>
+                </div>
+                <div class="flex justify-between items-center mt-1">
+                    <label class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                        <input asp-for="RememberMe" type="checkbox" class="rounded border-slate-300 text-primary focus:ring-primary" />
+                        <span>Remember me</span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Submit Button -->
+            <button type="submit" class="mt-2 w-full flex items-center justify-center rounded-xl bg-primary hover:bg-primary/90 text-white text-base font-bold h-12 sm:h-14 transition-all shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0">
+                Log In
+            </button>
+        </form>
+        
+        <!-- Footer / Register Link -->
+        <div class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 text-center">
+            <p class="text-slate-500 dark:text-slate-400 text-sm">
+                Don't have an account? 
+                <a asp-action="Register" class="font-bold text-primary hover:text-primary/80 ml-1 transition-colors">Register</a>
+            </p>
+        </div>
+    </div>
+    
+    <!-- Optional Footer Credits -->
+    <div class="mt-8 text-center">
+        <p class="text-xs text-slate-400 dark:text-slate-600">© 2024 Study Tracker App. All rights reserved.</p>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

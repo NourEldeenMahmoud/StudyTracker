@@ -1,0 +1,69 @@
+@{
+    ViewData["Title"] = "Weekly Target";
+    Layout = "_UserLayout";
+    var target = ViewBag.Target as StudyTracker.Models.UserWeeklyTarget;
+    var dailyProgress = ViewBag.DailyProgress as StudyTracker.Models.ViewModels.WeeklyTargetProgressViewModel;
+    var userName = ViewBag.UserName as string ?? "User";
+}
+
+<main class="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Weekly Target</h1>
+            <p class="text-slate-500 dark:text-slate-400 mt-1">Track your daily study goals.</p>
+        </div>
+        <a asp-action="Setup" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-primary/20">
+            <span class="material-symbols-outlined text-[20px]">edit</span>
+            <span>@(target != null ? "Edit Target" : "Set Target")</span>
+        </a>
+    </div>
+    
+    @if (target != null && dailyProgress != null)
+    {
+        <!-- Current Target Card -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-4">Today's Goal</h3>
+            <div class="space-y-4">
+                <div class="flex justify-between items-end">
+                    <span class="text-4xl font-bold text-slate-900 dark:text-white">@dailyProgress.ProgressPercentage.ToString("F0")%</span>
+                    <span class="text-sm font-medium text-slate-500 dark:text-slate-400">@(dailyProgress.TodayDoneMinutes / 60)h @(dailyProgress.TodayDoneMinutes % 60)m / @(dailyProgress.DailyTargetMinutes / 60)h</span>
+                </div>
+                <div class="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <div class="h-full bg-primary rounded-full" style="width: @(Math.Min(dailyProgress.ProgressPercentage, 100))%"></div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold @(dailyProgress.IsAchieved ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-primary/10 text-primary")">
+                        @(dailyProgress.IsAchieved ? "✅ Achieved" : "❌ Not Achieved")
+                    </span>
+                    <span class="text-sm text-slate-500 dark:text-slate-400">Streak: @dailyProgress.StreakDays days</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Weekly Progress Link -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">Weekly Progress</h3>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">View your progress for the entire week</p>
+                </div>
+                <a asp-action="WeeklyProgress" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    View Details
+                    <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-12 text-center">
+            <span class="material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600 mb-4">target</span>
+            <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">No Target Set</h3>
+            <p class="text-slate-500 dark:text-slate-400 mb-6">Set a weekly target to track your daily study goals.</p>
+            <a asp-action="Setup" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-lg font-medium transition-colors shadow-lg shadow-primary/20">
+                <span class="material-symbols-outlined text-[20px]">add</span>
+                <span>Set Target</span>
+            </a>
+        </div>
+    }
+</main>

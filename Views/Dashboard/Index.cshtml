@@ -1,0 +1,1175 @@
+@{
+    ViewData["Title"] = "Dashboard";
+    Layout = "_UserLayout";
+    var targetProgress = ViewBag.TargetProgress as StudyTracker.Models.ViewModels.WeeklyTargetProgressViewModel;
+    var weeklyLeaderboard = ViewBag.WeeklyLeaderboard as List<StudyTracker.Models.ViewModels.LeaderboardEntryViewModel> ?? new List<StudyTracker.Models.ViewModels.LeaderboardEntryViewModel>();
+    var weekStart = ViewBag.WeekStart as DateOnly? ?? DateOnly.FromDateTime(DateTime.UtcNow);
+    var weekEnd = ViewBag.WeekEnd as DateOnly? ?? weekStart.AddDays(6);
+    var currentUserRank = ViewBag.CurrentUserRank as int? ?? 0;
+    var currentUserHours = ViewBag.CurrentUserHours as decimal? ?? 0;
+    var userName = ViewBag.UserName as string ?? "User";
+    var currentUserId = ViewBag.CurrentUserId as string ?? "";
+    var dailyLeaderboard = ViewBag.DailyLeaderboard as List<StudyTracker.Models.ViewModels.LeaderboardEntryViewModel> ?? new List<StudyTracker.Models.ViewModels.LeaderboardEntryViewModel>();
+    var todayDate = ViewBag.TodayDate as DateOnly? ?? DateOnly.FromDateTime(DateTime.UtcNow);
+    
+    var top3Daily = dailyLeaderboard.Take(3).ToList();
+}
+
+<main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <!-- Welcome Section -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
+            <p class="text-slate-500 dark:text-slate-400 mt-1">Welcome back, @userName! You've been productive today.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="toggleDashboardPanel('logSessionPanel')" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-primary/20">
+                <span class="material-symbols-outlined text-[20px]">add</span>
+                <span>Log Session</span>
+            </button>
+            <button type="button" onclick="toggleDashboardPanel('setupTargetPanel')" class="inline-flex items-center gap-2 bg-white text-primary border border-primary/30 hover:bg-primary/5 px-4 py-2.5 rounded-lg font-medium transition-colors shadow-md shadow-primary/10">
+                <span class="material-symbols-outlined text-[20px]">target</span>
+                <span>Setup Target</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modals: Log Session + Setup Target -->
+    <div id="logSessionPanel" class="fixed inset-0 z-[60] hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300" onclick="toggleDashboardPanel('logSessionPanel')">
+        <div class="w-full max-w-xl mx-4 bg-white dark:bg-slate-900 rounded-2xl p-6 sm:p-8 shadow-xl border border-slate-100 dark:border-slate-800 transform transition-all duration-300 scale-95 opacity-0" id="logSessionPanelContent" onclick="event.stopPropagation()">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">Log Study Time</h2>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm">Quickly record a new study session without leaving your dashboard.</p>
+                </div>
+                <button type="button" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" onclick="toggleDashboardPanel('logSessionPanel')">
+                    <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
+            </div>
+            <form id="dashboardSessionForm" asp-controller="Sessions" asp-action="Add" method="post" asp-antiforgery="true" class="flex flex-col gap-6">
+                <!-- Date - Hidden, always today -->
+                <input type="hidden" name="Date" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+                
+                <!-- Today's Date Display -->
+                <div class="flex items-center gap-2 px-4 py-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20">
+                    <span class="material-symbols-outlined text-primary text-[18px]">calendar_today</span>
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Today: @DateTime.UtcNow.ToString("MMM dd, yyyy")</span>
+                </div>
+
+                <!-- Duration -->
+                <div class="flex flex-col gap-2">
+                    <label class="text-slate-900 dark:text-slate-100 text-base font-medium">Duration</label>
+                    <div class="flex gap-4">
+                        <div class="relative flex-1 group">
+                            <input id="hoursInput" name="Hours" type="number" min="0" max="16" value="0" placeholder="0" class="w-full h-12 pl-4 pr-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary focus:outline-none transition-all duration-200 text-sm" />
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-primary transition-colors duration-200">Hrs</span>
+                        </div>
+                        <div class="relative flex-1 group">
+                            <input id="minutesInput" name="Minutes" type="number" min="0" max="59" value="0" placeholder="00" class="w-full h-12 pl-4 pr-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary focus:outline-none transition-all duration-200 text-sm" />
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider group-focus-within:text-primary transition-colors duration-200">Min</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="flex flex-col gap-2">
+                    <label class="text-slate-900 dark:text-slate-100 text-base font-medium" for="Dashboard_Notes">Notes <span class="text-slate-400 font-normal text-xs ml-1">(Optional)</span></label>
+                    <div class="relative group">
+                        <textarea id="Dashboard_Notes" name="Notes" rows="3" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all text-sm" placeholder="Add any details about your session, topics covered, or areas to review..."></textarea>
+                        <div class="absolute right-3 top-3 text-slate-400 group-focus-within:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">edit_note</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <button type="button" class="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm font-medium" onclick="toggleDashboardPanel('logSessionPanel')">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-6 py-2 rounded-lg bg-primary hover:bg-blue-600 text-white font-semibold text-xs sm:text-sm shadow-md shadow-blue-500/30 transition-all">
+                        Save Session
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="setupTargetPanel" class="fixed inset-0 z-[60] hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300" onclick="toggleDashboardPanel('setupTargetPanel')">
+        <div class="w-full max-w-xl mx-4 bg-white dark:bg-slate-900 rounded-2xl p-6 sm:p-8 shadow-xl border border-slate-100 dark:border-slate-800 transform transition-all duration-300 scale-95 opacity-0" id="setupTargetPanelContent" onclick="event.stopPropagation()">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">Weekly Target Setup</h2>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm">Set or update your daily study goal for this week.</p>
+                </div>
+                <button type="button" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" onclick="toggleDashboardPanel('setupTargetPanel')">
+                    <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
+            </div>
+            <form asp-controller="Target" asp-action="Setup" method="post" class="flex flex-col gap-6">
+                <!-- Daily Target Hours -->
+                <div class="flex flex-col gap-2">
+                    <label class="text-slate-900 dark:text-slate-100 text-base font-medium" for="Dashboard_DailyTargetHours">Daily Target Hours</label>
+                    <div class="relative group">
+                        <input id="Dashboard_DailyTargetHours" name="DailyTargetHours" type="number" step="0.1" min="0.1" max="16" value="3.0" class="w-full h-12 pl-4 pr-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all text-sm" />
+                        <div class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within:text-primary transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">schedule</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Enter the number of hours you want to study each day (0.1 - 16 hours).</p>
+                    </div>
+                </div>
+
+                <!-- Week Info (Read-only) -->
+                <div class="flex items-center gap-2 px-4 py-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20">
+                    <span class="material-symbols-outlined text-primary text-[18px]">calendar_today</span>
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Week: @weekStart.ToString("MMM dd") - @weekStart.AddDays(6).ToString("MMM dd, yyyy")</span>
+                </div>
+                <input type="hidden" name="WeekStartDate" value="@weekStart.ToString("yyyy-MM-dd")" />
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <button type="button" class="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm font-medium" onclick="toggleDashboardPanel('setupTargetPanel')">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-6 py-2 rounded-lg bg-primary hover:bg-blue-600 text-white font-semibold text-xs sm:text-sm shadow-md shadow-blue-500/30 transition-all">
+                        Save Target
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Middle Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Daily Goal Widget -->
+        @if (targetProgress != null)
+        {
+            <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-900 dark:text-white">Daily Goal</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Keep up the momentum!</p>
+                    </div>
+                    <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold @(targetProgress.IsAchieved ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-primary/10 text-primary")">
+                        @(targetProgress.IsAchieved ? "Achieved" : "On Track")
+                    </span>
+                </div>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-end">
+                        <span id="progressPercentage" class="text-4xl font-bold text-slate-900 dark:text-white transition-all duration-500 ease-out" data-value="@targetProgress.ProgressPercentage.ToString("F0")">@targetProgress.ProgressPercentage.ToString("F0")%</span>
+                        <span id="todayDoneTime" class="text-sm font-medium text-slate-500 dark:text-slate-400 transition-all duration-500 ease-out" data-hours="@(targetProgress.TodayDoneMinutes / 60)" data-minutes="@(targetProgress.TodayDoneMinutes % 60)">@(targetProgress.TodayDoneMinutes / 60)h @(targetProgress.TodayDoneMinutes % 60)m / @(targetProgress.DailyTargetMinutes / 60)h</span>
+                    </div>
+                    <div class="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-primary rounded-full transition-all duration-700 ease-out" style="width: @(Math.Min(targetProgress.ProgressPercentage, 100))%" data-progress="@(Math.Min(targetProgress.ProgressPercentage, 100))"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-slate-400 dark:text-slate-500 pt-2">
+                        <span>0h</span>
+                        <span>@(targetProgress.DailyTargetMinutes / 60 / 2)h</span>
+                        <span>Target: @(targetProgress.DailyTargetMinutes / 60)h</span>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">Daily Goal</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Set your weekly target to track your daily progress.</p>
+                <a asp-controller="Target" asp-action="Setup" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">target</span>
+                    <span>Set Target</span>
+                </a>
+            </div>
+        }
+        
+        <!-- Streak Widget -->
+        @if (targetProgress != null)
+        {
+            var streakDays = targetProgress.StreakDays;
+            var streakPercentage = streakDays > 0 ? Math.Min((streakDays / 30.0) * 100, 100) : 0;
+            <div class="lg:col-span-1 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl border-2 border-blue-200 dark:border-blue-800 shadow-lg shadow-blue-200/50 dark:shadow-blue-900/30 p-6 flex flex-col items-center justify-center relative overflow-hidden">
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-100/20 to-transparent dark:from-blue-800/10 opacity-50"></div>
+                <div class="relative z-10 flex flex-col items-center w-full">
+                    <div class="relative size-44 flex items-center justify-center mb-4">
+                        <svg class="size-full -rotate-90" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+                            <circle class="stroke-current text-blue-200 dark:text-blue-900/40" cx="18" cy="18" fill="none" r="16" stroke-width="3"></circle>
+                            <circle class="stroke-current text-primary" cx="18" cy="18" fill="none" r="16" stroke-dasharray="100" stroke-dashoffset="@(100 - streakPercentage)" stroke-linecap="round" stroke-width="3"></circle>
+                        </svg>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center">
+                            <span class="material-symbols-outlined text-5xl text-primary mb-0.5">local_fire_department</span>
+                            <div class="text-center">
+                                <div id="streakDays" class="text-4xl font-black text-slate-900 dark:text-white leading-none" data-streak="@streakDays">@streakDays</div>
+                                <div class="text-[10px] font-bold text-primary uppercase tracking-wider mt-0.5">Days</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center space-y-1">
+                        <p class="text-lg font-bold text-slate-900 dark:text-white">Streak Active</p>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 font-medium">You’ve studied <span class="font-bold text-primary">@streakDays</span> day@(streakDays == 1 ? "" : "s") in a row. Keep going!</p>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="lg:col-span-1 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-slate-800 dark:to-slate-900 rounded-xl border-2 border-blue-200 dark:border-slate-700 shadow-sm p-6 flex flex-col items-center justify-center">
+                <div class="relative size-44 flex items-center justify-center mb-4">
+                    <svg class="size-full -rotate-90" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+                        <circle class="stroke-current text-blue-200 dark:text-slate-700" cx="18" cy="18" fill="none" r="16" stroke-width="3"></circle>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="material-symbols-outlined text-5xl text-primary mb-0.5">local_fire_department</span>
+                        <div class="text-center">
+                            <div class="text-4xl font-black text-slate-900 dark:text-white leading-none">0</div>
+                            <div class="text-[10px] font-bold text-primary uppercase tracking-wider mt-0.5">Days</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center space-y-1">
+                    <p class="text-lg font-bold text-slate-900 dark:text-white">Start your streak</p>
+                    <p class="text-sm text-slate-600 dark:text-slate-300 font-medium">Log a session today to get to <span class="font-bold text-primary">1 day</span>.</p>
+                </div>
+            </div>
+        }
+    </div>
+    
+    <!-- Daily Leaderboard Section -->
+    <div class="flex flex-col gap-6 mt-8">
+        <!-- Page Header -->
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6">
+            <div class="flex flex-col gap-2">
+                <h2 class="text-slate-900 dark:text-white text-3xl md:text-4xl font-black tracking-tight">Daily Leaderboard 🏆</h2>
+                <p class="text-slate-500 dark:text-slate-400 text-base">See who's studying the hardest today! Keep up the good work.</p>
+            </div>
+            <div class="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                <span class="material-symbols-outlined text-slate-400 text-[20px]">calendar_today</span>
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">@todayDate.ToString("MMM dd, yyyy")</span>
+            </div>
+        </div>
+        
+        <!-- Podium Section -->
+        @if (top3Daily.Any())
+        {
+            @if (top3Daily.Count == 1)
+            {
+                <!-- Single Winner -->
+                var firstPlace = top3Daily[0];
+                var firstHours = (int)firstPlace.TotalHours;
+                var firstMins = (int)((firstPlace.TotalHours - firstHours) * 60);
+                <div class="flex justify-center items-end mt-8">
+                    <div class="w-full max-w-md relative flex flex-col items-center z-10">
+                        <div class="absolute -top-10 animate-bounce">
+                            <span class="text-4xl">👑</span>
+                        </div>
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-8 border-2 border-yellow-400/30 dark:border-yellow-500/30 shadow-lg shadow-yellow-500/10 relative overflow-hidden group hover:-translate-y-2 transition-transform duration-300">
+                            <div class="absolute inset-0 bg-gradient-to-b from-yellow-50/50 to-transparent dark:from-yellow-900/10 opacity-50"></div>
+                            <div class="absolute top-0 inset-x-0 h-1.5 bg-yellow-400"></div>
+                            <div class="relative flex flex-col items-center gap-5">
+                                <div class="relative">
+                                    <div class="size-28 rounded-full border-4 border-yellow-400 dark:border-yellow-500 p-1 bg-white dark:bg-slate-800">
+                                        @if (!string.IsNullOrEmpty(firstPlace.ProfilePictureUrl))
+                                        {
+                                            <img src="@firstPlace.ProfilePictureUrl" alt="@firstPlace.FullName" class="size-full rounded-full object-cover" 
+                                                 onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                            <div class="size-full rounded-full bg-yellow-100 dark:bg-yellow-900/30 overflow-hidden flex items-center justify-center text-yellow-600 dark:text-yellow-400 font-semibold text-2xl" style="display: none;">
+                                                @firstPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="size-full rounded-full bg-yellow-100 dark:bg-yellow-900/30 overflow-hidden flex items-center justify-center text-yellow-600 dark:text-yellow-400 font-semibold text-2xl">
+                                                @firstPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-xs font-bold border-2 border-white dark:border-slate-800 shadow-sm whitespace-nowrap">
+                                        #1 Place
+                                    </div>
+                                </div>
+                                <div class="text-center mt-2">
+                                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">@(firstPlace.IsCurrentUser ? "You" : firstPlace.FullName)</h3>
+                                </div>
+                                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/30 rounded-xl px-6 py-3 w-full text-center">
+                                    <span class="text-4xl font-black text-yellow-600 dark:text-yellow-400 block tracking-tight transition-all duration-500 ease-out" data-hours="@firstHours" data-minutes="@firstMins">@(firstHours)h @(firstMins)m</span>
+                                    <span class="text-xs text-yellow-600/60 dark:text-yellow-400/60 uppercase tracking-wider font-bold">Study Time</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (top3Daily.Count == 2)
+            {
+                <!-- Two Winners - Pyramid Layout -->
+                var firstPlace = top3Daily[0];
+                var secondPlace = top3Daily[1];
+                var firstHours = (int)firstPlace.TotalHours;
+                var firstMins = (int)((firstPlace.TotalHours - firstHours) * 60);
+                var secondHours = (int)secondPlace.TotalHours;
+                var secondMins = (int)((secondPlace.TotalHours - secondHours) * 60);
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end mt-8">
+                    <!-- 2nd Place -->
+                    <div class="order-2 md:order-1 relative flex flex-col items-center">
+                        <div class="absolute -top-12 z-20">
+                            <span class="text-5xl drop-shadow-lg">🥈</span>
+                        </div>
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 border-2 border-slate-300 dark:border-slate-600 shadow-md shadow-slate-200/50 dark:shadow-slate-900/50 relative overflow-visible group hover:-translate-y-1 transition-transform duration-300 mt-4">
+                            <div class="absolute inset-0 bg-gradient-to-b from-slate-50/30 to-transparent dark:from-slate-700/20 opacity-50"></div>
+                            <div class="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300"></div>
+                            <div class="flex flex-col items-center gap-4">
+                                <div class="relative">
+                                    <div class="size-20 rounded-full border-4 border-slate-300 dark:border-slate-500 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 overflow-hidden shadow-md">
+                                        @if (!string.IsNullOrEmpty(secondPlace.ProfilePictureUrl))
+                                        {
+                                            <img src="@secondPlace.ProfilePictureUrl" alt="@secondPlace.FullName" class="size-full object-cover" 
+                                                 onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                            <div class="size-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-lg" style="display: none;">
+                                                @secondPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="size-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-lg">
+                                                @secondPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-br from-slate-300 to-slate-400 text-white px-3 py-1 rounded-full text-xs font-bold border-2 border-white dark:border-slate-800 shadow-md whitespace-nowrap">
+                                        #2 Place
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">@(secondPlace.IsCurrentUser ? "You" : secondPlace.FullName)</h3>
+                                </div>
+                                <div class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 w-full text-center shadow-sm">
+                                    <span class="text-2xl font-black text-slate-700 dark:text-slate-200 block transition-all duration-500 ease-out" data-hours="@secondHours" data-minutes="@secondMins">@(secondHours)h @(secondMins)m</span>
+                                    <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Studied</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 1st Place (Winner) -->
+                    <div class="order-1 md:order-2 relative flex flex-col items-center z-10 -mt-8 md:-mt-12 mb-4 md:mb-0 w-full">
+                        <div class="absolute -top-14 z-20 animate-bounce">
+                            <span class="text-6xl drop-shadow-lg">👑</span>
+                        </div>
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-8 border-2 border-yellow-400/30 dark:border-yellow-500/30 shadow-lg shadow-yellow-500/10 relative overflow-visible group hover:-translate-y-2 transition-transform duration-300 mt-6">
+                            <div class="absolute inset-0 bg-gradient-to-b from-yellow-50/50 to-transparent dark:from-yellow-900/10 opacity-50"></div>
+                            <div class="absolute top-0 inset-x-0 h-1.5 bg-yellow-400"></div>
+                            <div class="relative flex flex-col items-center gap-5">
+                                <div class="relative">
+                                    <div class="size-28 rounded-full border-4 border-yellow-400 dark:border-yellow-500 p-1 bg-white dark:bg-slate-800">
+                                        @if (!string.IsNullOrEmpty(firstPlace.ProfilePictureUrl))
+                                        {
+                                            <img src="@firstPlace.ProfilePictureUrl" alt="@firstPlace.FullName" class="size-full rounded-full object-cover" 
+                                                 onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                            <div class="size-full rounded-full bg-yellow-100 dark:bg-yellow-900/30 overflow-hidden flex items-center justify-center text-yellow-600 dark:text-yellow-400 font-semibold text-2xl" style="display: none;">
+                                                @firstPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="size-full rounded-full bg-yellow-100 dark:bg-yellow-900/30 overflow-hidden flex items-center justify-center text-yellow-600 dark:text-yellow-400 font-semibold text-2xl">
+                                                @firstPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-xs font-bold border-2 border-white dark:border-slate-800 shadow-sm whitespace-nowrap">
+                                        #1 Place
+                                    </div>
+                                </div>
+                                <div class="text-center mt-2">
+                                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">@(firstPlace.IsCurrentUser ? "You" : firstPlace.FullName)</h3>
+                                </div>
+                                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/30 rounded-xl px-6 py-3 w-full text-center">
+                                    <span class="text-4xl font-black text-yellow-600 dark:text-yellow-400 block tracking-tight transition-all duration-500 ease-out" data-hours="@firstHours" data-minutes="@firstMins">@(firstHours)h @(firstMins)m</span>
+                                    <span class="text-xs text-yellow-600/60 dark:text-yellow-400/60 uppercase tracking-wider font-bold">Study Time</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Empty space for 3rd place -->
+                    <div class="order-3 hidden md:block"></div>
+                </div>
+            }
+            else
+            {
+                var secondPlace = top3Daily[1];
+                var secondHours = (int)secondPlace.TotalHours;
+                var secondMins = (int)((secondPlace.TotalHours - secondHours) * 60);
+                var firstPlace = top3Daily[0];
+                var firstHours = (int)firstPlace.TotalHours;
+                var firstMins = (int)((firstPlace.TotalHours - firstHours) * 60);
+                var thirdPlace = top3Daily[2];
+                var thirdHours = (int)thirdPlace.TotalHours;
+                var thirdMins = (int)((thirdPlace.TotalHours - thirdHours) * 60);
+                <!-- Three Winners - Full Podium -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end mt-8">
+                    <!-- 2nd Place -->
+                    <div class="order-2 md:order-1 relative flex flex-col items-center">
+                        <div class="absolute -top-12 z-20">
+                            <span class="text-5xl drop-shadow-lg">🥈</span>
+                        </div>
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 border-2 border-slate-300 dark:border-slate-600 shadow-md shadow-slate-200/50 dark:shadow-slate-900/50 relative overflow-visible group hover:-translate-y-1 transition-transform duration-300 mt-4">
+                            <div class="absolute inset-0 bg-gradient-to-b from-slate-50/30 to-transparent dark:from-slate-700/20 opacity-50"></div>
+                            <div class="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300"></div>
+                            <div class="flex flex-col items-center gap-4">
+                                <div class="relative">
+                                    <div class="size-20 rounded-full border-4 border-slate-300 dark:border-slate-500 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 overflow-hidden shadow-md">
+                                        @if (!string.IsNullOrEmpty(secondPlace.ProfilePictureUrl))
+                                        {
+                                            <img src="@secondPlace.ProfilePictureUrl" alt="@secondPlace.FullName" class="size-full object-cover" 
+                                                 onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                            <div class="size-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-lg" style="display: none;">
+                                                @secondPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="size-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-lg">
+                                                @secondPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-br from-slate-300 to-slate-400 text-white px-3 py-1 rounded-full text-xs font-bold border-2 border-white dark:border-slate-800 shadow-md whitespace-nowrap">
+                                        #2 Place
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">@(secondPlace.IsCurrentUser ? "You" : secondPlace.FullName)</h3>
+                                </div>
+                                <div class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 w-full text-center shadow-sm">
+                                    <span class="text-2xl font-black text-slate-700 dark:text-slate-200 block transition-all duration-500 ease-out" data-hours="@secondHours" data-minutes="@secondMins">@(secondHours)h @(secondMins)m</span>
+                                    <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Studied</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 1st Place (Winner) -->
+                    <div class="order-1 md:order-2 relative flex flex-col items-center z-10 -mt-8 md:-mt-12 mb-4 md:mb-0 w-full">
+                        <div class="absolute -top-14 z-20 animate-bounce">
+                            <span class="text-6xl drop-shadow-lg">👑</span>
+                        </div>
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-8 border-2 border-yellow-400/30 dark:border-yellow-500/30 shadow-lg shadow-yellow-500/10 relative overflow-visible group hover:-translate-y-2 transition-transform duration-300 mt-6">
+                            <div class="absolute inset-0 bg-gradient-to-b from-yellow-50/50 to-transparent dark:from-yellow-900/10 opacity-50"></div>
+                            <div class="absolute top-0 inset-x-0 h-1.5 bg-yellow-400"></div>
+                            <div class="relative flex flex-col items-center gap-5">
+                                <div class="relative">
+                                    <div class="size-28 rounded-full border-4 border-yellow-400 dark:border-yellow-500 p-1 bg-white dark:bg-slate-800">
+                                        @if (!string.IsNullOrEmpty(firstPlace.ProfilePictureUrl))
+                                        {
+                                            <img src="@firstPlace.ProfilePictureUrl" alt="@firstPlace.FullName" class="size-full rounded-full object-cover" 
+                                                 onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                            <div class="size-full rounded-full bg-yellow-100 dark:bg-yellow-900/30 overflow-hidden flex items-center justify-center text-yellow-600 dark:text-yellow-400 font-semibold text-2xl" style="display: none;">
+                                                @firstPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="size-full rounded-full bg-yellow-100 dark:bg-yellow-900/30 overflow-hidden flex items-center justify-center text-yellow-600 dark:text-yellow-400 font-semibold text-2xl">
+                                                @firstPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-xs font-bold border-2 border-white dark:border-slate-800 shadow-sm whitespace-nowrap">
+                                        #1 Place
+                                    </div>
+                                </div>
+                                <div class="text-center mt-2">
+                                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">@(firstPlace.IsCurrentUser ? "You" : firstPlace.FullName)</h3>
+                                </div>
+                                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/30 rounded-xl px-6 py-3 w-full text-center">
+                                    <span class="text-4xl font-black text-yellow-600 dark:text-yellow-400 block tracking-tight transition-all duration-500 ease-out" data-hours="@firstHours" data-minutes="@firstMins">@(firstHours)h @(firstMins)m</span>
+                                    <span class="text-xs text-yellow-600/60 dark:text-yellow-400/60 uppercase tracking-wider font-bold">Study Time</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 3rd Place -->
+                    <div class="order-3 relative flex flex-col items-center">
+                        <div class="absolute -top-12 z-20">
+                            <span class="text-5xl drop-shadow-lg">🥉</span>
+                        </div>
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 border-2 border-orange-300 dark:border-orange-700 shadow-md shadow-orange-200/50 dark:shadow-orange-900/30 relative overflow-visible group hover:-translate-y-1 transition-transform duration-300 mt-4">
+                            <div class="absolute inset-0 bg-gradient-to-b from-orange-50/30 to-transparent dark:from-orange-900/10 opacity-50"></div>
+                            <div class="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-orange-300 via-orange-400 to-orange-300"></div>
+                            <div class="flex flex-col items-center gap-4">
+                                <div class="relative">
+                                    <div class="size-20 rounded-full border-4 border-orange-300 dark:border-orange-600 bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-800 dark:to-orange-900 overflow-hidden shadow-md">
+                                        @if (!string.IsNullOrEmpty(thirdPlace.ProfilePictureUrl))
+                                        {
+                                            <img src="@thirdPlace.ProfilePictureUrl" alt="@thirdPlace.FullName" class="size-full object-cover" 
+                                                 onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                            <div class="size-full flex items-center justify-center text-orange-700 dark:text-orange-300 font-semibold text-lg" style="display: none;">
+                                                @thirdPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="size-full flex items-center justify-center text-orange-700 dark:text-orange-300 font-semibold text-lg">
+                                                @thirdPlace.FullName.Substring(0, 1).ToUpper()
+                                            </div>
+                                        }
+                                    </div>
+                                    <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-br from-orange-400 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold border-2 border-white dark:border-slate-800 shadow-md whitespace-nowrap">
+                                        #3 Place
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">@(thirdPlace.IsCurrentUser ? "You" : thirdPlace.FullName)</h3>
+                                </div>
+                                <div class="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 border border-orange-200 dark:border-orange-700 rounded-lg px-4 py-2 w-full text-center shadow-sm">
+                                    <span class="text-2xl font-black text-orange-700 dark:text-orange-300 block transition-all duration-500 ease-out" data-hours="@thirdHours" data-minutes="@thirdMins">@(thirdHours)h @(thirdMins)m</span>
+                                    <span class="text-xs text-orange-600 dark:text-orange-400 uppercase tracking-wider font-semibold">Studied</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-12 text-center mt-4">
+                <p class="text-slate-500 dark:text-slate-400">No study sessions logged for today yet.</p>
+            </div>
+        }
+    </div>
+    
+    <!-- Weekly Leaderboard Table -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-100 dark:border-slate-700 overflow-hidden relative">
+        <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-1">Weekly Leaderboard</h3>
+                <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                    <span class="material-symbols-outlined text-sm">calendar_today</span>
+                    <span class="text-xs font-medium">@weekStart.ToString("MMM dd") - @weekEnd.ToString("MMM dd, yyyy")</span>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <div class="flex flex-col px-5 py-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Your Rank</span>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-xl font-bold text-slate-900 dark:text-white">#@(currentUserRank > 0 ? currentUserRank.ToString() : "-")</span>
+                    </div>
+                </div>
+                <div class="flex flex-col px-5 py-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Study Time</span>
+                    <span id="currentUserHours" class="text-xl font-bold text-primary transition-all duration-500 ease-out" data-hours="@((int)currentUserHours)" data-minutes="@((int)((currentUserHours - (int)currentUserHours) * 60))">
+                        @if (currentUserHours > 0) 
+                        { 
+                            var userHours = (int)currentUserHours; 
+                            var userMins = (int)((currentUserHours - userHours) * 60); 
+                            <text>@(userHours)h @(userMins)m</text> 
+                        } 
+                        else 
+                        { 
+                            <text>0h</text> 
+                        }
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-100 dark:border-slate-700">
+                        <th class="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400 w-20">Rank</th>
+                        <th class="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Student</th>
+                        <th class="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400 text-right">Total Hours</th>
+                        <th class="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400 text-right">Sessions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-50 dark:divide-slate-700/50">
+                    @if (weeklyLeaderboard.Any())
+                    {
+                        @foreach (var entry in weeklyLeaderboard)
+                        {
+                            <tr class="group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors @(entry.IsCurrentUser ? "bg-primary/5" : "")">
+                                <td class="py-4 px-6">
+                                    @if (entry.Rank <= 3)
+                                    {
+                                        <span class="flex items-center justify-center w-8 h-8 rounded-full @(entry.Rank == 1 ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400" : entry.Rank == 2 ? "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" : "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400") font-bold text-sm">
+                                            @entry.Rank
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="flex items-center justify-center w-8 h-8 @(entry.IsCurrentUser ? "text-primary font-bold" : "text-slate-500") text-sm">
+                                            @entry.Rank
+                                        </span>
+                                    }
+                                </td>
+                                <td class="py-4 px-6">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden @(entry.IsCurrentUser ? "ring-2 ring-primary" : "")">
+                                            @if (!string.IsNullOrEmpty(entry.ProfilePictureUrl))
+                                            {
+                                                <img src="@entry.ProfilePictureUrl" alt="@entry.FullName" class="w-full h-full object-cover" 
+                                                     onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                                <div class="w-full h-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-sm" style="display: none;">
+                                                    @entry.FullName.Substring(0, 1).ToUpper()
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="w-full h-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-sm">
+                                                    @entry.FullName.Substring(0, 1).ToUpper()
+                                                </div>
+                                            }
+                                        </div>
+                                        <div class="flex flex-col">
+                                            <span class="font-medium text-slate-900 dark:text-white @(entry.IsCurrentUser ? "font-bold" : "")">
+                                                @(entry.IsCurrentUser ? "You" : entry.FullName)
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-4 px-6 text-right">
+                                    <span class="font-bold @(entry.Rank == 1 ? "text-primary" : "text-slate-900 dark:text-white") text-lg transition-all duration-500 ease-out" data-hours="@((int)entry.TotalHours)" data-minutes="@((int)((entry.TotalHours - (int)entry.TotalHours) * 60))">
+                                        @{var entryHours = (int)entry.TotalHours; var entryMins = (int)((entry.TotalHours - entryHours) * 60);}@(entryHours)h @(entryMins)m
+                                    </span>
+                                </td>
+                                <td class="py-4 px-6 text-right">
+                                    <span class="text-slate-600 dark:text-slate-300 font-medium">@entry.SessionsCount</span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" class="px-6 py-12 text-center">
+                                <p class="text-slate-500 dark:text-slate-400">No leaderboard data available yet.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+@section Scripts {
+    <script>
+        function toggleDashboardPanel(panelId) {
+            const panels = ["logSessionPanel", "setupTargetPanel"];
+            panels.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const content = document.getElementById(id + 'Content') || el.querySelector('.modal-content') || el.children[0];
+                
+                if (id === panelId) {
+                    const isHidden = el.classList.contains("hidden");
+                    if (isHidden) {
+                        el.classList.remove("hidden");
+                        // Trigger animation
+                        setTimeout(() => {
+                            if (content) {
+                                content.classList.remove("scale-95", "opacity-0");
+                                content.classList.add("scale-100", "opacity-100");
+                            }
+                        }, 10);
+                        
+                        // Reset form when opening
+                        if (id === 'logSessionPanel') {
+                            const form = document.getElementById('dashboardSessionForm');
+                            if (form) {
+                                form.reset();
+                                // Set default values
+                                const hoursInput = document.getElementById('hoursInput');
+                                const minutesInput = document.getElementById('minutesInput');
+                                if (hoursInput) hoursInput.value = '0';
+                                if (minutesInput) minutesInput.value = '0';
+                            }
+                        }
+                    } else {
+                        // Animate out
+                        if (content) {
+                            content.classList.remove("scale-100", "opacity-100");
+                            content.classList.add("scale-95", "opacity-0");
+                        }
+                        setTimeout(() => {
+                            el.classList.add("hidden");
+                        }, 300);
+                    }
+                } else {
+                    // Animate out other panels
+                    if (content) {
+                        content.classList.remove("scale-100", "opacity-100");
+                        content.classList.add("scale-95", "opacity-0");
+                    }
+                    setTimeout(() => {
+                        el.classList.add("hidden");
+                    }, 300);
+                }
+            });
+        }
+        
+        // Clear default value (0) when user starts typing in Hours or Minutes
+        document.addEventListener('DOMContentLoaded', function() {
+            const hoursInput = document.getElementById('hoursInput');
+            const minutesInput = document.getElementById('minutesInput');
+            
+            if (hoursInput) {
+                // Clear on focus if value is 0
+                hoursInput.addEventListener('focus', function() {
+                    if (this.value === '0' || this.value === '') {
+                        this.value = '';
+                    }
+                });
+                
+                // Restore 0 if empty on blur
+                hoursInput.addEventListener('blur', function() {
+                    if (this.value === '' || this.value === null) {
+                        this.value = '0';
+                    }
+                });
+                
+                // Select all text on focus for easy replacement
+                hoursInput.addEventListener('click', function() {
+                    if (this.value === '0') {
+                        this.select();
+                    }
+                });
+            }
+            
+            if (minutesInput) {
+                // Clear on focus if value is 0
+                minutesInput.addEventListener('focus', function() {
+                    if (this.value === '0' || this.value === '') {
+                        this.value = '';
+                    }
+                });
+                
+                // Restore 0 if empty on blur
+                minutesInput.addEventListener('blur', function() {
+                    if (this.value === '' || this.value === null) {
+                        this.value = '0';
+                    }
+                });
+                
+                // Select all text on focus for easy replacement
+                minutesInput.addEventListener('click', function() {
+                    if (this.value === '0') {
+                        this.select();
+                    }
+                });
+            }
+        });
+        
+        // Handle dashboard session form submission via AJAX
+        document.getElementById('dashboardSessionForm')?.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const form = e.target;
+            const submitButton = form.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.textContent;
+            
+            // Validate inputs before submission
+            const hoursInput = form.querySelector('input[name="Hours"]');
+            const minutesInput = form.querySelector('input[name="Minutes"]');
+            
+            // Ensure Hours and Minutes have default values if empty
+            if (!hoursInput.value || hoursInput.value === '') {
+                hoursInput.value = '0';
+            }
+            if (!minutesInput.value || minutesInput.value === '') {
+                minutesInput.value = '0';
+            }
+            
+            // Validate that at least one field has a value > 0
+            const hours = parseInt(hoursInput.value) || 0;
+            const minutes = parseInt(minutesInput.value) || 0;
+            
+            if (hours === 0 && minutes === 0) {
+                showNotification('Please enter a duration (hours or minutes must be greater than 0).', 'warning');
+                hoursInput.focus();
+                return;
+            }
+            
+            // Disable submit button
+            submitButton.disabled = true;
+            submitButton.textContent = 'Saving...';
+            
+            try {
+                const formData = new FormData(form);
+                
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                // Check response status
+                if (response.ok) {
+                    // Try to parse as JSON first
+                    const contentType = response.headers.get('content-type') || '';
+                    
+                    if (contentType.includes('application/json')) {
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            // Close modal
+                            toggleDashboardPanel('logSessionPanel');
+                            
+                            // Reset form
+                            form.reset();
+                            document.getElementById('hoursInput').value = '0';
+                            document.getElementById('minutesInput').value = '0';
+                            
+                            // Show success message
+                            showNotification('Session added successfully!', 'success');
+                            
+                            // Update dashboard data without reload
+                            await updateDashboardData();
+                            
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        } else {
+                            showNotification('Error: ' + (result.message || 'An error occurred'), 'error');
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
+                    } else {
+                        // Handle HTML response (fallback)
+                        const html = await response.text();
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        
+                        const validationErrors = doc.querySelectorAll('.text-danger, .field-validation-error, .validation-summary-errors li');
+                        let errorMessages = [];
+                        validationErrors.forEach(err => {
+                            const text = err.textContent?.trim();
+                            if (text && !errorMessages.includes(text)) {
+                                errorMessages.push(text);
+                            }
+                        });
+                        
+                        if (errorMessages.length > 0) {
+                            showNotification('Error: ' + errorMessages.join('\n'), 'error');
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        } else {
+                            // Success - update data
+                            toggleDashboardPanel('logSessionPanel');
+                            form.reset();
+                            document.getElementById('hoursInput').value = '0';
+                            document.getElementById('minutesInput').value = '0';
+                            showNotification('Session added successfully!', 'success');
+                            await updateDashboardData();
+                            submitButton.disabled = false;
+                            submitButton.textContent = originalButtonText;
+                        }
+                    }
+                } else {
+                    // Handle error response
+                    const html = await response.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    const errorMessages = doc.querySelectorAll('.text-danger, .field-validation-error, .validation-summary-errors li');
+                    let errorText = [];
+                    errorMessages.forEach(err => {
+                        const text = err.textContent?.trim();
+                        if (text && !errorText.includes(text)) {
+                            errorText.push(text);
+                        }
+                    });
+                    
+                    if (errorText.length > 0) {
+                        showNotification('Error: ' + errorText.join('\n'), 'error');
+                    } else {
+                        showNotification('An error occurred. Please check your input and try again.', 'error');
+                    }
+                    
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('An error occurred while saving the session. Please try again.', 'error');
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
+        });
+        
+        // Function to update dashboard data without reload
+        async function updateDashboardData() {
+            try {
+                const response = await fetch('/Dashboard/GetDashboardData', {
+                    method: 'GET',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                });
+                
+                if (!response.ok) {
+                    console.error('Failed to fetch dashboard data');
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    console.error('Error fetching dashboard data:', data.message);
+                    return;
+                }
+                
+                // Update target progress
+                if (data.targetProgress) {
+                    updateTargetProgress(data.targetProgress);
+                }
+                
+                // Update leaderboards
+                if (data.dailyLeaderboard && data.dailyLeaderboard.length > 0) {
+                    updateDailyLeaderboard(data.dailyLeaderboard);
+                }
+                
+                if (data.weeklyLeaderboard && data.weeklyLeaderboard.length > 0) {
+                    updateWeeklyLeaderboard(data.weeklyLeaderboard);
+                }
+                
+                // Update current user stats
+                updateCurrentUserStats(data.currentUserRank, data.currentUserHours);
+                
+            } catch (error) {
+                console.error('Error updating dashboard:', error);
+            }
+        }
+        
+        // Update target progress widget
+        function updateTargetProgress(progress) {
+            // Update percentage
+            const percentageEl = document.getElementById('progressPercentage');
+            if (percentageEl) {
+                const oldValue = parseFloat(percentageEl.getAttribute('data-value')) || 0;
+                const newValue = parseFloat(progress.progressPercentage.toFixed(0));
+                if (oldValue !== newValue) {
+                    animateNumber(percentageEl, oldValue, newValue, '%');
+                    percentageEl.setAttribute('data-value', newValue);
+                }
+            }
+            
+            // Update hours/minutes
+            const hoursMinsEl = document.getElementById('todayDoneTime');
+            if (hoursMinsEl) {
+                const hours = Math.floor(progress.todayDoneMinutes / 60);
+                const mins = progress.todayDoneMinutes % 60;
+                const targetHours = Math.floor(progress.dailyTargetMinutes / 60);
+                const oldHours = parseInt(hoursMinsEl.getAttribute('data-hours')) || 0;
+                const oldMins = parseInt(hoursMinsEl.getAttribute('data-minutes')) || 0;
+                
+                if (hours !== oldHours || mins !== oldMins) {
+                    animateTime(hoursMinsEl, oldHours, oldMins, hours, mins);
+                    hoursMinsEl.setAttribute('data-hours', hours);
+                    hoursMinsEl.setAttribute('data-minutes', mins);
+                    // Update the target part
+                    const currentText = hoursMinsEl.textContent;
+                    if (currentText.includes('/')) {
+                        const parts = currentText.split('/');
+                        hoursMinsEl.textContent = `${hours}h ${mins}m / ${targetHours}h`;
+                    }
+                }
+            }
+            
+            // Update progress bar
+            const progressBar = document.querySelector('[data-progress]');
+            if (progressBar) {
+                const newWidth = Math.min(progress.progressPercentage, 100);
+                const oldWidth = parseFloat(progressBar.getAttribute('data-progress')) || 0;
+                if (Math.abs(newWidth - oldWidth) > 0.1) {
+                    progressBar.style.transition = 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+                    progressBar.style.width = newWidth + '%';
+                    progressBar.setAttribute('data-progress', newWidth);
+                }
+            }
+            
+            // Update streak
+            const streakEl = document.getElementById('streakDays');
+            if (streakEl) {
+                const oldStreak = parseInt(streakEl.getAttribute('data-streak')) || 0;
+                if (progress.streakDays !== oldStreak) {
+                    animateNumber(streakEl, oldStreak, progress.streakDays, '');
+                    streakEl.setAttribute('data-streak', progress.streakDays);
+                }
+            }
+        }
+        
+        // Update daily leaderboard
+        function updateDailyLeaderboard(leaderboard) {
+            // Update top 3 podium
+            const top3 = leaderboard.slice(0, 3);
+            top3.forEach((entry, index) => {
+                const hours = Math.floor(entry.totalHours);
+                const mins = Math.floor((entry.totalHours - hours) * 60);
+                
+                // Find and update the corresponding element
+                const timeElements = document.querySelectorAll('[data-hours]');
+                timeElements.forEach(el => {
+                    const elHours = parseInt(el.getAttribute('data-hours')) || 0;
+                    const elMins = parseInt(el.getAttribute('data-minutes')) || 0;
+                    
+                    // Check if this is the right entry (rough match)
+                    if (Math.abs(elHours - hours) <= 1 && Math.abs(elMins - mins) <= 5) {
+                        animateTime(el, elHours, elMins, hours, mins);
+                    }
+                });
+            });
+        }
+        
+        // Update weekly leaderboard table
+        function updateWeeklyLeaderboard(leaderboard) {
+            leaderboard.forEach(entry => {
+                const hours = Math.floor(entry.totalHours);
+                const mins = Math.floor((entry.totalHours - hours) * 60);
+                
+                // Find row by userId or name
+                const rows = document.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    const nameCell = row.querySelector('td:nth-child(2)');
+                    if (nameCell && nameCell.textContent.includes(entry.fullName)) {
+                        const timeCell = row.querySelector('td:nth-child(3)');
+                        if (timeCell) {
+                            const timeSpan = timeCell.querySelector('span');
+                            if (timeSpan) {
+                                const currentText = timeSpan.textContent.trim();
+                                const newText = `${hours}h ${mins}m`;
+                                if (currentText !== newText) {
+                                    animateTime(timeSpan, 0, 0, hours, mins);
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+        }
+        
+        // Update current user stats
+        function updateCurrentUserStats(rank, hours) {
+            // Update rank - find the rank element in the stats section
+            const rankContainer = document.querySelector('.flex.flex-col.px-5.py-3:has(.text-xs:contains("YOUR RANK"))');
+            if (rankContainer) {
+                const rankEl = rankContainer.querySelector('.text-xl.font-bold');
+                if (rankEl) {
+                    const newRank = rank > 0 ? `#${rank}` : '#-';
+                    if (rankEl.textContent.trim() !== newRank) {
+                        rankEl.textContent = newRank;
+                    }
+                }
+            }
+            
+            // Update hours
+            const hoursEl = document.getElementById('currentUserHours');
+            if (hoursEl) {
+                const h = Math.floor(hours);
+                const m = Math.floor((hours - h) * 60);
+                const oldHours = parseInt(hoursEl.getAttribute('data-hours')) || 0;
+                const oldMins = parseInt(hoursEl.getAttribute('data-minutes')) || 0;
+                
+                if (h !== oldHours || m !== oldMins) {
+                    animateTime(hoursEl, oldHours, oldMins, h, m);
+                    hoursEl.setAttribute('data-hours', h);
+                    hoursEl.setAttribute('data-minutes', m);
+                }
+            }
+        }
+        
+        // Animate number change
+        function animateNumber(element, from, to, suffix = '') {
+            if (!element) return;
+            
+            const duration = 800;
+            const startTime = Date.now();
+            const difference = parseFloat(to) - parseFloat(from);
+            
+            function update() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const current = parseFloat(from) + (difference * easeOut);
+                
+                element.textContent = Math.round(current) + suffix;
+                
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                } else {
+                    element.textContent = to + suffix;
+                }
+            }
+            
+            update();
+        }
+        
+        // Animate time change
+        function animateTime(element, fromHours, fromMins, toHours, toMins) {
+            if (!element) return;
+            
+            const duration = 600;
+            const startTime = Date.now();
+            const hoursDiff = toHours - fromHours;
+            const minsDiff = toMins - fromMins;
+            
+            function update() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                
+                const currentHours = Math.round(fromHours + (hoursDiff * easeOut));
+                const currentMins = Math.round(fromMins + (minsDiff * easeOut));
+                
+                element.textContent = `${currentHours}h ${currentMins}m`;
+                
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                } else {
+                    element.textContent = `${toHours}h ${toMins}m`;
+                    if (element.hasAttribute('data-hours')) {
+                        element.setAttribute('data-hours', toHours);
+                        element.setAttribute('data-minutes', toMins);
+                    }
+                }
+            }
+            
+            update();
+        }
+        
+        // Smooth number animation on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add fade-in and scale animation to numbers
+            const numberElements = document.querySelectorAll('[data-hours], [data-value], [data-progress]');
+            numberElements.forEach((el, index) => {
+                el.style.opacity = '0';
+                el.style.transform = 'scale(0.9) translateY(5px)';
+                setTimeout(() => {
+                    el.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-out';
+                    el.style.opacity = '1';
+                    el.style.transform = 'scale(1) translateY(0)';
+                }, 100 + (index * 30));
+            });
+            
+            // Animate progress bar with smooth transition
+            const progressBar = document.querySelector('[data-progress]');
+            if (progressBar) {
+                const targetWidth = parseFloat(progressBar.getAttribute('data-progress')) || 0;
+                progressBar.style.width = '0%';
+                progressBar.style.transition = 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)';
+                setTimeout(() => {
+                    progressBar.style.width = targetWidth + '%';
+                }, 400);
+            }
+            
+            // Animate streak circle
+            const streakCircle = document.querySelector('.stroke-current.text-primary');
+            if (streakCircle) {
+                streakCircle.style.transition = 'stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)';
+            }
+        });
+    </script>
+}

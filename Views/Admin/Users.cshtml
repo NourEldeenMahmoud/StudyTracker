@@ -1,0 +1,110 @@
+@{
+    ViewData["Title"] = "User Management";
+    Layout = "_AdminLayout";
+    var users = ViewBag.Users as List<StudyTracker.Models.ViewModels.AdminUserViewModel> ?? new List<StudyTracker.Models.ViewModels.AdminUserViewModel>();
+    var searchTerm = ViewBag.SearchTerm as string ?? "";
+}
+
+<!-- Header -->
+<header class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div>
+        <h2 class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">User Management</h2>
+        <p class="text-slate-500 dark:text-slate-400 mt-1">Manage students and their accounts.</p>
+    </div>
+</header>
+
+<!-- Search Form -->
+<div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+    <form method="get" class="flex gap-4">
+        <input type="text" name="searchTerm" value="@searchTerm" placeholder="Search by name or email..." class="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-2 focus:border-primary focus:ring-primary focus:ring-1" />
+        <button type="submit" class="px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-colors">
+            Search
+        </button>
+        @if (!string.IsNullOrEmpty(searchTerm))
+        {
+            <a asp-action="Users" class="px-6 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg font-medium transition-colors">
+                Clear
+            </a>
+        }
+    </form>
+</div>
+
+<!-- Users Table -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col">
+    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white">All Users (@users.Count)</h3>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-semibold">
+                    <th class="px-6 py-4">Name</th>
+                    <th class="px-6 py-4">Email</th>
+                    <th class="px-6 py-4">Created At</th>
+                    <th class="px-6 py-4">Status</th>
+                    <th class="px-6 py-4 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                @foreach (var user in users)
+                {
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-sm">
+                                    @user.FullName.Substring(0, 1).ToUpper()
+                                </div>
+                                <div>
+                                    <p class="font-medium text-slate-900 dark:text-white">@user.FullName</p>
+                                    @if (user.IsAdmin)
+                                    {
+                                        <span class="text-xs text-primary font-medium">Admin</span>
+                                    }
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-slate-600 dark:text-slate-300">@user.Email</td>
+                        <td class="px-6 py-4 text-slate-600 dark:text-slate-300">@user.CreatedAt.ToString("MMM dd, yyyy")</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium @(user.IsSuspended ? "bg-red-50 text-red-700 border border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800" : "bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800")">
+                                @if (!user.IsSuspended)
+                                {
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                }
+                                @(user.IsSuspended ? "Suspended" : "Active")
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                @if (!user.IsAdmin)
+                                {
+                                    @if (user.IsSuspended)
+                                    {
+                                        <form asp-action="UnsuspendUser" asp-route-userId="@user.Id" method="post" class="inline">
+                                            <button type="submit" class="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 text-sm font-medium">
+                                                Unsuspend
+                                            </button>
+                                        </form>
+                                    }
+                                    else
+                                    {
+                                        <form asp-action="SuspendUser" asp-route-userId="@user.Id" method="post" class="inline">
+                                            <button type="submit" class="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium">
+                                                Suspend
+                                            </button>
+                                        </form>
+                                    }
+                                    <form asp-action="MakeAdmin" asp-route-userId="@user.Id" method="post" class="inline">
+                                        <button type="submit" class="text-primary hover:text-primary/80 text-sm font-medium">
+                                            Make Admin
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

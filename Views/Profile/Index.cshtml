@@ -1,0 +1,83 @@
+@{
+    ViewData["Title"] = "Profile";
+    Layout = "_UserLayout";
+    var user = ViewBag.User as StudyTracker.Models.ApplicationUser;
+    var userName = ViewBag.UserName as string ?? "User";
+}
+
+<main class="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Profile</h1>
+            <p class="text-slate-500 dark:text-slate-400 mt-1">Manage your account settings.</p>
+        </div>
+    </div>
+    
+    @if (user != null)
+    {
+        <!-- Profile Info -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+            <div class="flex items-center gap-6 mb-6">
+                @if (!string.IsNullOrEmpty(user.ProfilePictureUrl))
+                {
+                    <img src="@user.ProfilePictureUrl" alt="Profile Picture" class="size-24 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700" />
+                }
+                else
+                {
+                    <div class="size-24 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-3xl border-2 border-slate-200 dark:border-slate-700">
+                        @user.FullName.Substring(0, 1).ToUpper()
+                    </div>
+                }
+                <div>
+                    <h3 class="text-2xl font-bold text-slate-900 dark:text-white">@user.FullName</h3>
+                    <p class="text-slate-500 dark:text-slate-400">@user.Email</p>
+                </div>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-6">Account Information</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-sm font-medium text-slate-500 dark:text-slate-400">Full Name</label>
+                    <p class="text-lg font-semibold text-slate-900 dark:text-white mt-1">@user.FullName</p>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-500 dark:text-slate-400">Email</label>
+                    <p class="text-lg font-semibold text-slate-900 dark:text-white mt-1">@user.Email</p>
+                </div>
+                <div>
+                    <label class="text-sm font-medium text-slate-500 dark:text-slate-400">Account Created</label>
+                    <p class="text-lg font-semibold text-slate-900 dark:text-white mt-1">@user.CreatedAt.ToString("MMM dd, yyyy")</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-4">Edit Profile</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Update your name and account information.</p>
+                <a asp-action="Edit" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">edit</span>
+                    <span>Edit Profile</span>
+                </a>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-4">Change Password</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Update your password to keep your account secure.</p>
+                <a asp-action="ChangePassword" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">lock</span>
+                    <span>Change Password</span>
+                </a>
+            </div>
+            
+            <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-4">Weekly Progress</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">View your weekly target progress and achievements.</p>
+                <a asp-controller="Target" asp-action="WeeklyProgress" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">trending_up</span>
+                    <span>View Progress</span>
+                </a>
+            </div>
+        </div>
+    }
+</main>
