@@ -1,0 +1,6 @@
+@model StudyTracker.Models.ViewModels.BadgeTierMarkViewModel
+@if (Model.TierLevel is int t && t > 0)
+{
+    <span class="select-none rounded font-mono text-[9px] font-black leading-none px-1 py-0.5 tabular-nums @BadgeTierUi.TierPillClasses(t, Model.CategoryId)"
+          title="Tier @BadgeTierUi.ToRoman(t)">@BadgeTierUi.ToRoman(t)</span>
+}

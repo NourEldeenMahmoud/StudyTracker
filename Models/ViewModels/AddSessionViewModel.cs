@@ -19,9 +19,18 @@ namespace StudyTracker.Models.ViewModels
         [Display(Name = "Minutes")]
         public int Minutes { get; set; } = 0;
 
+        [Required(ErrorMessage = "Please describe what you studied.")]
+        [MinLength(1, ErrorMessage = "Please describe what you studied.")]
         [MaxLength(250, ErrorMessage = "Notes cannot exceed 250 characters")]
-        [Display(Name = "Notes (Optional)")]
-        public string? Notes { get; set; }
+        [Display(Name = "Notes")]
+        public string Notes { get; set; } = string.Empty;
+
+        [MaxLength(10)]
+        public string Source { get; set; } = "manual";
+
+        /// <summary>Optional id from the focus timer client state; used to ignore duplicate POSTs for the same run.</summary>
+        [MaxLength(64)]
+        public string? TimerRunId { get; set; }
 
         public int DurationMinutes => Hours * 60 + Minutes;
     }

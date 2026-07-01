@@ -1,0 +1,104 @@
+@model IReadOnlyList<BadgeGroupViewModel>
+@{
+    IHtmlContent BadgeIcon(string icon, string sizeClass) {
+        if ((icon ?? "").StartsWith("/") || (icon ?? "").StartsWith("http"))
+            return new Microsoft.AspNetCore.Html.HtmlString($"<img src=\"{System.Net.WebUtility.HtmlEncode(icon)}\" class=\"inline-block w-6 h-6 object-cover rounded-full align-middle\" />");
+        bool isMaterial = BadgeIconHelper.IsMaterialSymbolName(icon);
+        string html = isMaterial
+            ? $"<span class=\"material-symbols-outlined {sizeClass}\">{System.Net.WebUtility.HtmlEncode(icon)}</span>"
+            : $"<span class=\"{sizeClass} leading-none\">{System.Net.WebUtility.HtmlEncode(icon)}</span>";
+        return new Microsoft.AspNetCore.Html.HtmlString(html);
+    }
+}
+@if (Model != null && Model.Any())
+{
+    @foreach (var grp in Model)
+    {
+        <div class="mb-6 last:mb-0">
+            <h4 class="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-[18px]">layers</span>
+                @grp.Title
+            </h4>
+            @foreach (var sub in grp.Subgroups)
+            {
+                @if (!string.IsNullOrEmpty(sub.SubgroupTitle))
+                {
+                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">@sub.SubgroupTitle</p>
+                }
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4 last:mb-0">
+                    <div class="rounded-xl p-4 border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/50">
+                        <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Current tier</p>
+                        @if (sub.CurrentTier != null && sub.CurrentBadge != null)
+                        {
+                            <div class="flex items-start gap-3">
+                                <div class="flex items-center gap-2 shrink-0" dir="ltr">
+                                    <div class="w-11 h-11 rounded-full flex items-center justify-center @(string.IsNullOrEmpty(sub.CurrentTier.CategoryId) || sub.CurrentTier.TierLevel <= 0 ? sub.CurrentTier.Color : BadgeTierUi.IconBadgeSurfaceClasses(sub.CurrentTier.TierLevel, sub.CurrentTier.CategoryId)) @BadgeTierUi.IconRingClasses(sub.CurrentTier.TierLevel, sub.CurrentTier.CategoryId)">
+                                        @Html.Raw(BadgeIcon(sub.CurrentTier.Icon, "text-[22px]"))
+                                    </div>
+                                    @if (sub.CurrentTier.TierLevel > 0)
+                                    {
+                                        <div class="flex flex-col items-center justify-center gap-1 ps-0.5">
+                                            <span class="min-w-[1.5rem] px-1.5 py-1 rounded-lg text-center text-[10px] font-mono font-black leading-none shadow-sm @BadgeTierUi.TierPillClasses(sub.CurrentTier.TierLevel, sub.CurrentTier.CategoryId)"
+                                                  title="Tier @BadgeTierUi.ToRoman(sub.CurrentTier.TierLevel)">@BadgeTierUi.ToRoman(sub.CurrentTier.TierLevel)</span>
+                                            <span class="text-[9px] font-mono font-bold rounded-md px-1.5 py-0.5 @BadgeTierUi.LvBadgeClasses(sub.CurrentTier.TierLevel, sub.CurrentTier.CategoryId)">LV @sub.CurrentTier.TierLevel</span>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="min-w-0 flex-1 pt-0.5">
+                                    <p class="text-sm font-semibold text-slate-900 dark:text-white">@sub.CurrentTier.Name</p>
+                                    <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">@sub.CurrentTier.Description</p>
+                                    <p class="text-[10px] text-slate-400 mt-1">Earned @TimeZoneHelper.ToCairo(sub.CurrentBadge.EarnedAt).ToString("MMM dd, yyyy")</p>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-sm text-slate-500 dark:text-slate-400">Not earned yet — progress below.</p>
+                        }
+                    </div>
+                    <div class="rounded-xl p-4 border border-dashed border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800/30">
+                        <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Next tier</p>
+                        @if (sub.NextTier != null)
+                        {
+                            <div class="flex items-start gap-3 mb-3">
+                                <div class="flex items-center gap-2 shrink-0" dir="ltr">
+                                    <div class="w-11 h-11 rounded-full flex items-center justify-center @(string.IsNullOrEmpty(sub.NextTier.CategoryId) || sub.NextTier.TierLevel <= 0 ? "bg-slate-100 dark:bg-slate-700 text-slate-400" : BadgeTierUi.IconBadgeSurfaceClasses(sub.NextTier.TierLevel, sub.NextTier.CategoryId, lockedPreview: true)) @BadgeTierUi.IconRingClasses(sub.NextTier.TierLevel, sub.NextTier.CategoryId)">
+                                        @Html.Raw(BadgeIcon(sub.NextTier.Icon, "text-[22px]"))
+                                    </div>
+                                    @if (sub.NextTier.TierLevel > 0)
+                                    {
+                                        <div class="flex flex-col items-center justify-center gap-1 ps-0.5">
+                                            <span class="min-w-[1.5rem] px-1.5 py-1 rounded-lg text-center text-[10px] font-mono font-black leading-none shadow-sm opacity-95 @BadgeTierUi.TierPillClasses(sub.NextTier.TierLevel, sub.NextTier.CategoryId)"
+                                                  title="Tier @BadgeTierUi.ToRoman(sub.NextTier.TierLevel)">@BadgeTierUi.ToRoman(sub.NextTier.TierLevel)</span>
+                                            <span class="text-[9px] font-mono font-bold rounded-md px-1.5 py-0.5 @BadgeTierUi.LvBadgeClasses(sub.NextTier.TierLevel, sub.NextTier.CategoryId)">LV @sub.NextTier.TierLevel</span>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="min-w-0 flex-1 pt-0.5">
+                                    <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">@sub.NextTier.Name</p>
+                                    <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">@sub.NextTier.Description</p>
+                                </div>
+                            </div>
+                            @if (sub.ProgressPercent.HasValue && !string.IsNullOrEmpty(sub.ProgressLabel))
+                            {
+                                <div class="mt-2">
+                                    <div class="flex justify-between text-[10px] text-slate-500 mb-1">
+                                        <span>Progress</span>
+                                        <span>@sub.ProgressLabel</span>
+                                    </div>
+                                    <div class="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                        <div class="h-full rounded-full bg-primary transition-all" style="width: @(sub.ProgressPercent.Value.ToString("F0"))%"></div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <p class="text-sm text-emerald-600 dark:text-emerald-400 font-medium">Max tier reached</p>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}

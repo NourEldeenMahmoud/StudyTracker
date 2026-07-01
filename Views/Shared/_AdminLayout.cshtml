@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - StudyTracker Admin</title>
+    <link rel="icon" type="image/svg+xml" href="/trophy.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#1e1b4b" />
+    <meta name="msapplication-TileColor" content="#1e1b4b" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
@@ -28,9 +34,80 @@
         }
     </script>
 </head>
-<body class="bg-background-light dark:bg-background-dark text-slate-700 dark:text-slate-100 min-h-screen flex overflow-hidden">
+<body class="bg-background-light dark:bg-background-dark text-slate-700 dark:text-slate-100 min-h-screen flex overflow-x-hidden">
+    @await Html.PartialAsync("_TailwindTierSafelist")
+    <!-- Mobile Top Bar -->
+    <header class="md:hidden fixed top-0 left-0 right-0 z-20 bg-sidebar-light dark:bg-sidebar-dark border-b border-slate-200 dark:border-slate-700">
+        <div class="px-4 h-12 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-primary flex items-center justify-center text-white">
+                    <span class="material-symbols-outlined text-[18px]">school</span>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span class="text-sm font-semibold text-slate-900 dark:text-white">StudyTracker</span>
+                    <span class="text-[10px] font-semibold text-primary uppercase tracking-wide">Admin</span>
+                </div>
+            </div>
+            <form asp-controller="Account" asp-action="Logout" method="post">
+                <button type="submit" class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-red-500 transition-colors px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined text-[16px]">logout</span>
+                </button>
+            </form>
+        </div>
+        <!-- Scrollable pill nav -->
+        <nav class="flex gap-1.5 overflow-x-auto pb-2.5 pt-0.5 px-3 scrollbar-none" style="-webkit-overflow-scrolling: touch; scrollbar-width: none;">
+            @{
+                var currentAction = ViewContext.RouteData.Values["action"]?.ToString();
+                var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+            }
+            <a asp-controller="Admin" asp-action="Index"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors
+                @(currentAction == "Index" && currentController == "Admin" ? "bg-primary text-white shadow-sm" : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800")">
+                <span class="material-symbols-outlined text-[14px]">dashboard</span>
+                Dashboard
+            </a>
+            <a asp-controller="Admin" asp-action="Users"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors
+                @(currentAction == "Users" ? "bg-primary text-white shadow-sm" : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800")">
+                <span class="material-symbols-outlined text-[14px]">group</span>
+                Students
+            </a>
+            <a asp-controller="Admin" asp-action="Sessions"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors
+                @(currentAction == "Sessions" && currentController == "Admin" ? "bg-primary text-white shadow-sm" : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800")">
+                <span class="material-symbols-outlined text-[14px]">menu_book</span>
+                Sessions
+            </a>
+            <a asp-controller="Admin" asp-action="Targets"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors
+                @(currentAction == "Targets" ? "bg-primary text-white shadow-sm" : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800")">
+                <span class="material-symbols-outlined text-[14px]">track_changes</span>
+                Targets
+            </a>
+            <a asp-controller="Admin" asp-action="Badges"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors
+                @(currentAction == "Badges" ? "bg-primary text-white shadow-sm" : "border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800")">
+                <span class="material-symbols-outlined text-[14px]">military_tech</span>
+                Badges
+            </a>
+            @if (User.IsInRole("SuperAdmin"))
+            {
+                <a asp-controller="SuperAdmin" asp-action="Index"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors
+                    @(currentController == "SuperAdmin" ? "bg-red-600 text-white shadow-sm" : "border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20")">
+                    <span class="material-symbols-outlined text-[14px]">security</span>
+                    Super Admin
+                </a>
+            }
+            <a asp-controller="Dashboard" asp-action="Index"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <span class="material-symbols-outlined text-[14px]">home</span>
+                User App
+            </a>
+        </nav>
+    </header>
     <!-- Sidebar -->
-    <aside class="w-64 h-screen bg-sidebar-light dark:bg-sidebar-dark border-r border-slate-200 dark:border-slate-700 flex flex-col fixed left-0 top-0 z-10 transition-all duration-300">
+    <aside class="hidden md:flex md:w-64 h-screen bg-sidebar-light dark:bg-sidebar-dark border-r border-slate-200 dark:border-slate-700 flex-col fixed left-0 top-0 z-10 transition-all duration-300">
         <!-- Brand -->
         <div class="h-20 flex items-center px-8 border-b border-slate-100 dark:border-slate-800">
             <div class="flex items-center gap-3">
@@ -39,7 +116,19 @@
                 </div>
                 <div>
                     <h1 class="font-bold text-lg leading-tight tracking-tight text-slate-900 dark:text-white">StudyTracker</h1>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Admin Portal</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        @if (User.IsInRole("SuperAdmin"))
+                        {
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-semibold">
+                                <span class="material-symbols-outlined text-[14px]">star</span>
+                                <span>Super Admin</span>
+                            </span>
+                        }
+                        else
+                        {
+                            <span>Admin Portal</span>
+                        }
+                    </p>
                 </div>
             </div>
         </div>
@@ -63,6 +152,19 @@
                 <span class="material-symbols-outlined group-hover:text-primary transition-colors">track_changes</span>
                 <span class="font-medium">Targets & Progress</span>
             </a>
+            <a asp-controller="Admin" asp-action="Badges" class="flex items-center gap-3 px-4 py-3 @(ViewContext.RouteData.Values["action"]?.ToString() == "Badges" ? "bg-primary/10 text-primary" : "text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200") rounded-xl transition-colors group">
+                <span class="material-symbols-outlined group-hover:text-primary transition-colors">military_tech</span>
+                <span class="font-medium">Badges</span>
+            </a>
+
+            @if (User.IsInRole("SuperAdmin"))
+            {
+                <p class="px-4 pt-6 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Super Admin</p>
+                <a asp-controller="SuperAdmin" asp-action="Index" class="flex items-center gap-3 px-4 py-3 @(ViewContext.RouteData.Values["controller"]?.ToString() == "SuperAdmin" ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300" : "text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200") rounded-xl transition-colors group">
+                    <span class="material-symbols-outlined group-hover:text-red-500 transition-colors">security</span>
+                    <span class="font-medium">Super Admin Panel</span>
+                </a>
+            }
         </nav>
         
         <!-- Quick Actions -->
@@ -85,7 +187,7 @@
     </aside>
     
     <!-- Main Content -->
-    <main class="flex-1 ml-64 p-8 overflow-y-auto h-screen">
+    <main class="flex-1 md:ml-64 ml-0 pt-24 md:pt-8 px-4 md:px-8 min-h-screen">
         <div class="max-w-7xl mx-auto flex flex-col gap-8">
             @if (TempData["SuccessMessage"] != null)
             {
@@ -105,5 +207,20 @@
     
     @await RenderSectionAsync("Scripts", required: false)
     @await Html.PartialAsync("_NotificationSystem")
+    <script>
+        // Clear timer state on logout
+        (function () {
+            const uid = '@Html.Raw(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "")';
+            if (!uid) return;
+            const key = 'focusSessionState_' + uid;
+            document.querySelectorAll('form').forEach(function (form) {
+                if (form.action && form.action.toLowerCase().includes('logout')) {
+                    form.addEventListener('submit', function () {
+                        try { localStorage.removeItem(key); } catch (_) {}
+                    });
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

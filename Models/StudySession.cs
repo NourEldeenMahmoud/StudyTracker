@@ -21,6 +21,9 @@ namespace StudyTracker.Models
         
         [MaxLength(250)]
         public string? Notes { get; set; }
+
+        [MaxLength(10)]
+        public string Source { get; set; } = "manual";
         
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

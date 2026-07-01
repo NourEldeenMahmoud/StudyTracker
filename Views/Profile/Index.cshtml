@@ -1,8 +1,33 @@
+@functions {
+    IHtmlContent BadgeIcon(string icon, string sizeClass) {
+        if ((icon ?? "").StartsWith("/") || (icon ?? "").StartsWith("http"))
+            return new Microsoft.AspNetCore.Html.HtmlString($"<img src=\"{System.Net.WebUtility.HtmlEncode(icon)}\" class=\"inline-block w-6 h-6 object-cover rounded-full align-middle\" />");
+        bool isMaterial = BadgeIconHelper.IsMaterialSymbolName(icon);
+        string html = isMaterial
+            ? $"<span class=\"material-symbols-outlined {sizeClass}\">{System.Net.WebUtility.HtmlEncode(icon)}</span>"
+            : $"<span class=\"{sizeClass} leading-none\">{System.Net.WebUtility.HtmlEncode(icon)}</span>";
+        return new Microsoft.AspNetCore.Html.HtmlString(html);
+    }
+}
 @{
     ViewData["Title"] = "Profile";
     Layout = "_UserLayout";
     var user = ViewBag.User as StudyTracker.Models.ApplicationUser;
     var userName = ViewBag.UserName as string ?? "User";
+    var earnedBadges = ViewBag.EarnedBadges as List<StudyTracker.Models.UserBadge> ?? new();
+    var badgeGroups = ViewBag.BadgeGroups as IReadOnlyList<BadgeGroupViewModel> ?? Array.Empty<BadgeGroupViewModel>();
+    var customDefs = ViewBag.CustomDefs as List<StudyTracker.Models.CustomBadgeDefinition> ?? new();
+    var stats = ViewBag.ProfileStats as StudyTracker.Controllers.ProfileStatsDto;
+
+    // earned custom badges (key = GUID string)
+    var earnedCustomBadges = earnedBadges
+        .Where(b => Guid.TryParse(b.BadgeKey, out _))
+        .Select(b => new {
+            Badge = b,
+            Def = customDefs.FirstOrDefault(d => d.Id.ToString() == b.BadgeKey)
+        })
+        .Where(x => x.Def != null)
+        .ToList();
 }
 
 <main class="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -16,21 +41,21 @@
     @if (user != null)
     {
         <!-- Profile Info -->
-        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-            <div class="flex items-center gap-6 mb-6">
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-5 sm:p-6">
+            <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-6 text-center sm:text-left">
                 @if (!string.IsNullOrEmpty(user.ProfilePictureUrl))
                 {
-                    <img src="@user.ProfilePictureUrl" alt="Profile Picture" class="size-24 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700" />
+                    <img src="@user.ProfilePictureUrl" alt="Profile Picture" class="size-20 sm:size-24 rounded-full object-cover border-2 border-slate-200 dark:border-slate-700 shrink-0" />
                 }
                 else
                 {
-                    <div class="size-24 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-3xl border-2 border-slate-200 dark:border-slate-700">
+                    <div class="size-20 sm:size-24 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-3xl border-2 border-slate-200 dark:border-slate-700 shrink-0">
                         @user.FullName.Substring(0, 1).ToUpper()
                     </div>
                 }
-                <div>
-                    <h3 class="text-2xl font-bold text-slate-900 dark:text-white">@user.FullName</h3>
-                    <p class="text-slate-500 dark:text-slate-400">@user.Email</p>
+                <div class="min-w-0">
+                    <h3 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate">@user.FullName</h3>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm truncate">@user.Email</p>
                 </div>
             </div>
             <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-6">Account Information</h3>
@@ -45,13 +70,106 @@
                 </div>
                 <div>
                     <label class="text-sm font-medium text-slate-500 dark:text-slate-400">Account Created</label>
-                    <p class="text-lg font-semibold text-slate-900 dark:text-white mt-1">@user.CreatedAt.ToString("MMM dd, yyyy")</p>
+                    <p class="text-lg font-semibold text-slate-900 dark:text-white mt-1">@TimeZoneHelper.ToCairo(user.CreatedAt).ToString("MMM dd, yyyy")</p>
                 </div>
             </div>
         </div>
         
+        <!-- Study Stats -->
+        @if (stats != null)
+        {
+            <div class="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+                <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-3 sm:p-5 text-center">
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                        <span class="material-symbols-outlined text-primary text-[16px] sm:text-[20px]">schedule</span>
+                    </div>
+                    <p class="text-lg sm:text-2xl font-black text-slate-900 dark:text-white">@stats.TotalHours.ToString("F1")</p>
+                    <p class="text-[10px] sm:text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5 sm:mt-1 leading-tight">Total<br class="sm:hidden"/>Hours</p>
+                </div>
+                <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-3 sm:p-5 text-center">
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-2">
+                        <span class="material-symbols-outlined text-emerald-500 text-[16px] sm:text-[20px]">avg_pace</span>
+                    </div>
+                    <p class="text-lg sm:text-2xl font-black text-slate-900 dark:text-white">@stats.AvgHoursPerWeek.ToString("F1")</p>
+                    <p class="text-[10px] sm:text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5 sm:mt-1 leading-tight">Avg<br class="sm:hidden"/>Hrs/Wk</p>
+                </div>
+                <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-3 sm:p-5 text-center">
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/10 flex items-center justify-center mx-auto mb-2">
+                        <span class="material-symbols-outlined text-amber-500 text-[16px] sm:text-[20px]">emoji_events</span>
+                    </div>
+                    <p class="text-lg sm:text-2xl font-black text-slate-900 dark:text-white">@stats.BestWeekHours.ToString("F1")</p>
+                    <p class="text-[10px] sm:text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5 sm:mt-1 leading-tight">Best<br class="sm:hidden"/>Week</p>
+                </div>
+                <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-3 sm:p-5 text-center">
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-blue-500/10 flex items-center justify-center mx-auto mb-2">
+                        <span class="material-symbols-outlined text-blue-500 text-[16px] sm:text-[20px]">local_fire_department</span>
+                    </div>
+                    <p class="text-lg sm:text-2xl font-black text-slate-900 dark:text-white">@stats.StreakDays</p>
+                    <p class="text-[10px] sm:text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5 sm:mt-1 leading-tight">Day<br class="sm:hidden"/>Streak</p>
+                </div>
+                <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-3 sm:p-5 text-center">
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-violet-500/10 flex items-center justify-center mx-auto mb-2">
+                        <span class="material-symbols-outlined text-violet-500 text-[16px] sm:text-[20px]">calendar_view_day</span>
+                    </div>
+                    <p class="text-lg sm:text-2xl font-black text-slate-900 dark:text-white">@stats.AvgHoursPerDay.ToString("F1")</p>
+                    <p class="text-[10px] sm:text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5 sm:mt-1 leading-tight">Avg<br class="sm:hidden"/>Hrs/Day</p>
+                </div>
+                <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-3 sm:p-5 text-center">
+                    <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-rose-500/10 flex items-center justify-center mx-auto mb-2">
+                        <span class="material-symbols-outlined text-rose-500 text-[16px] sm:text-[20px]">calendar_month</span>
+                    </div>
+                    <p class="text-sm sm:text-lg font-black text-slate-900 dark:text-white">@(stats.FirstSessionDate?.ToString("MMM dd") ?? "—")</p>
+                    <p class="text-[10px] sm:text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mt-0.5 sm:mt-1 leading-tight">First<br class="sm:hidden"/>Session</p>
+                </div>
+            </div>
+        }
+
+        <!-- Badges -->
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-5 sm:p-6">
+            <div class="flex items-center gap-2 mb-5">
+                <span class="material-symbols-outlined text-primary text-[22px]">military_tech</span>
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">Badges</h3>
+                <span class="ml-auto text-xs font-semibold text-slate-400 dark:text-slate-500">@earnedBadges.Count earned</span>
+            </div>
+
+            @if (earnedCustomBadges.Any())
+            {
+                <!-- Custom (admin-awarded) badges first -->
+                <div class="mb-4">
+                    <p class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">workspace_premium</span>
+                        Special Awards
+                    </p>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        @foreach (var ec in earnedCustomBadges)
+                        {
+                            <div class="flex flex-col items-center gap-2 rounded-xl p-4 border border-emerald-200 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-900/10 relative">
+                                <span class="absolute top-2 right-2 material-symbols-outlined text-[12px] text-emerald-500">workspace_premium</span>
+                                <div class="w-12 h-12 rounded-full flex items-center justify-center @ec.Def!.Color ring-2 ring-emerald-400/50 dark:ring-emerald-600/50 ring-offset-2 ring-offset-emerald-50 dark:ring-offset-slate-900">
+                                    @Html.Raw(BadgeIcon(ec.Def.Icon, "text-[26px]"))
+                                </div>
+                                <span class="text-[9px] font-mono font-bold tracking-widest text-emerald-700 dark:text-emerald-300 uppercase">Award</span>
+                                <div class="text-center">
+                                    <p class="text-sm font-semibold text-slate-900 dark:text-white">@ec.Def.Name</p>
+                                    <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                        Earned @TimeZoneHelper.ToCairo(ec.Badge.EarnedAt).ToString("MMM dd, yyyy")
+                                    </p>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (badgeGroups.Any())
+            {
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Study milestones</p>
+                @await Html.PartialAsync("_SystemBadgeTierGroups", badgeGroups)
+            }
+        </div>
+
         <!-- Actions -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
                 <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-4">Edit Profile</h3>
                 <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Update your name and account information.</p>

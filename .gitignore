@@ -197,10 +197,15 @@ FodyWeavers.xsd
 *.sln.iml
 
 # Sensitive files - DO NOT COMMIT THESE
+appsettings.json
 appsettings.Development.json
 appsettings.Production.json
 *.pfx
 *.p12
+
+# Publish output
+publish/
+Properties/PublishProfiles/
 
 # Uploads folder (if using external path)
 C:\Uploads\

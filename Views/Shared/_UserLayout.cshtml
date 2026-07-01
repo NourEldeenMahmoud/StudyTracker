@@ -4,6 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - StudyTracker</title>
+    <link rel="icon" type="image/svg+xml" href="/trophy.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#1e1b4b" />
+    <meta name="msapplication-TileColor" content="#1e1b4b" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
@@ -27,61 +33,282 @@
     </script>
 </head>
 <body class="bg-background-light dark:bg-background-dark min-h-screen text-slate-900 dark:text-slate-100 flex flex-col overflow-x-hidden">
+    @await Html.PartialAsync("_TailwindTierSafelist")
     <!-- Top Navigation -->
-    <header class="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md">
-        <div class="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto h-16 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <a asp-controller="Dashboard" asp-action="Index" class="flex items-center gap-3">
-                    <div class="size-8 text-primary flex items-center justify-center">
-                        <span class="material-symbols-outlined text-3xl">school</span>
+    @{
+        var profilePictureUrl = ViewBag.ProfilePictureUrl as string;
+        var userName = ViewBag.UserName as string ?? "U";
+    }
+    <header class="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+            <!-- Top bar -->
+            <div class="h-16 flex items-center justify-between">
+                <!-- Left: Logo -->
+                <div class="flex items-center gap-2 min-w-0">
+                    <a asp-controller="Dashboard" asp-action="Index" class="flex items-center gap-2">
+                        <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-primary">
+                            <span class="material-symbols-outlined text-[22px]">school</span>
                     </div>
-                    <h2 class="text-slate-900 dark:text-white text-lg font-bold tracking-tight">StudyTracker</h2>
+                        <span class="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
+                            StudyTracker
+                        </span>
                 </a>
             </div>
-            <div class="flex items-center gap-4">
-                <a asp-controller="Dashboard" asp-action="Index" class="hidden sm:flex h-10 px-4 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300 text-sm font-medium">
+
+                <!-- Desktop Nav -->
+                <nav class="hidden md:flex items-center gap-4 lg:gap-6 ml-6 flex-1">
+                    <a asp-controller="Dashboard" asp-action="Index"
+                       class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors">
                     Dashboard
                 </a>
-                <a asp-controller="Profile" asp-action="Index" class="hidden sm:flex h-10 px-4 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-600 dark:text-slate-300 text-sm font-medium">
-                    Profile
-                </a>
-                @if (User.IsInRole("Admin"))
-                {
-                    <a asp-controller="Admin" asp-action="Index" class="hidden sm:flex h-10 px-4 items-center justify-center gap-2 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary font-medium transition-colors text-sm">
-                        <span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
-                        Admin Panel
-                    </a>
-                }
-                <div class="h-8 w-[1px] bg-slate-200 dark:bg-slate-700 mx-2 hidden sm:block"></div>
-                <div class="flex items-center gap-3 pl-2">
-                    <div class="text-right hidden sm:block">
-                        <p class="text-sm font-semibold text-slate-900 dark:text-white">@ViewBag.UserName</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">@(User.IsInRole("Admin") ? "Admin" : "Student")</p>
+
+                    @if (User.IsInRole("Admin"))
+                    {
+                        <a asp-controller="Admin" asp-action="Index"
+                           class="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors">
+                            <span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+                            <span>Admin Panel</span>
+                        </a>
+                    }
+                </nav>
+
+                <!-- Right: Notifications, Theme, User / Logout (desktop) -->
+                <div class="hidden md:flex items-center gap-3 whitespace-nowrap">
+                    <button id="themeToggle"
+                            class="inline-flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            type="button">
+                        <span id="themeToggleIcon" class="material-symbols-outlined text-[18px]">dark_mode</span>
+                    </button>
+                    <div class="relative">
+                        <button id="notificationBell" type="button"
+                                class="inline-flex items-center justify-center w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative">
+                            <span class="material-symbols-outlined text-[20px]">notifications</span>
+                            <span id="notificationBadge" class="hidden absolute -top-1 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center"></span>
+                        </button>
+                        <div id="notificationDropdown"
+                             class="hidden absolute right-0 mt-2 w-[min(80vw,20rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-lg overflow-hidden z-40">
+                            <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Notifications</span>
+                                <button id="notificationMarkAll" type="button"
+                                        class="text-[11px] text-primary hover:text-primary/80 font-semibold">
+                                    Mark all as read
+                                </button>
+                            </div>
+                            <div id="notificationList" class="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                <div class="px-4 py-6 text-center text-xs text-slate-400 dark:text-slate-500">
+                                    Loading...
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="h-10 w-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden ring-2 ring-white dark:ring-background-dark shadow-sm">
-                        @{
-                            var profilePictureUrl = ViewBag.ProfilePictureUrl as string;
-                            var userName = ViewBag.UserName?.ToString() ?? "U";
+                    <div class="text-right">
+                        <p class="text-sm font-semibold text-slate-900 dark:text-white">@ViewBag.UserName</p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                            @if (User.IsInRole("SuperAdmin"))
+                            {
+                                @:Super Admin
+                            }
+                            else if (User.IsInRole("Admin"))
+                            {
+                                @:Admin
+                            }
+                            else
+                            {
+                                @:Student
+                            }
+                        </p>
+                    </div>
+
+                    <a asp-controller="Profile" asp-action="Index"
+                       class="shrink-0 w-9 h-9 rounded-full overflow-hidden ring-2 ring-white dark:ring-slate-900 bg-slate-200 dark:bg-slate-700 hover:ring-primary transition">
+                        @if (!string.IsNullOrWhiteSpace(profilePictureUrl))
+                        {
+                            <img src="@profilePictureUrl" alt="@userName"
+                                 class="w-full h-full object-cover" />
                         }
-                        @if (!string.IsNullOrEmpty(profilePictureUrl))
+                        else
+                        {
+                            <div class="w-full h-full flex items-center justify-center text-sm font-semibold text-slate-600 dark:text-slate-300">
+                                @userName.Substring(0, 1).ToUpper()
+                            </div>
+                        }
+                    </a>
+
+                    <form asp-controller="Account" asp-action="Logout" method="post" class="ml-1">
+                        <button type="submit"
+                                class="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                            Logout
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Mobile: Action buttons + Hamburger -->
+                <div class="md:hidden flex items-center gap-1.5">
+                    <!-- Mobile notification bell -->
+                    <div class="relative">
+                        <button id="notificationBellMobile" type="button"
+                                class="inline-flex items-center justify-center w-9 h-9 rounded-full text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative"
+                                aria-label="Notifications">
+                            <span class="material-symbols-outlined text-[22px]">notifications</span>
+                            <span id="notificationBadgeMobile" class="hidden absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center"></span>
+                        </button>
+                        <div id="notificationDropdownMobile"
+                             class="hidden absolute right-0 mt-2 w-[min(80vw,20rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden z-50">
+                            <div class="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Notifications</span>
+                                <button id="notificationMarkAllMobile" type="button"
+                                        class="text-[11px] text-primary hover:text-primary/80 font-semibold">
+                                    Mark all read
+                                </button>
+                            </div>
+                            <div id="notificationListMobile" class="max-h-72 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                                <div class="px-4 py-6 text-center text-xs text-slate-400 dark:text-slate-500">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Mobile theme toggle -->
+                    <button id="themeToggleMobile" type="button"
+                            class="inline-flex items-center justify-center w-9 h-9 rounded-full text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            aria-label="Toggle theme">
+                        <span id="themeToggleIconMobile" class="material-symbols-outlined text-[20px]">dark_mode</span>
+                    </button>
+                    <!-- Hamburger -->
+                    <button type="button"
+                            id="mobile-nav-toggle"
+                            class="inline-flex items-center justify-center w-9 h-9 rounded-full text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                            aria-label="Open navigation">
+                        <span class="material-symbols-outlined text-[24px]">menu</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile dropdown -->
+            <div id="mobile-nav-panel"
+                 class="hidden md:hidden absolute inset-x-0 top-16 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-lg z-40">
+                <!-- User info row -->
+                <div class="px-3 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
+                    <a asp-controller="Profile" asp-action="Index"
+                       class="shrink-0 w-10 h-10 rounded-full overflow-hidden ring-2 ring-white dark:ring-slate-900 bg-slate-200 dark:bg-slate-700 hover:ring-primary transition">
+                        @if (!string.IsNullOrWhiteSpace(profilePictureUrl))
                         {
                             <img src="@profilePictureUrl" alt="@userName" class="w-full h-full object-cover" />
                         }
                         else
                         {
-                            <div class="w-full h-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold">
+                            <div class="w-full h-full flex items-center justify-center text-sm font-semibold text-slate-600 dark:text-slate-300">
                                 @userName.Substring(0, 1).ToUpper()
                             </div>
                         }
+                    </a>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-semibold text-slate-900 dark:text-white truncate">@ViewBag.UserName</p>
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">
+                            @(User.IsInRole("SuperAdmin") ? "Super Admin" : User.IsInRole("Admin") ? "Admin" : "Student")
+                        </p>
                     </div>
                 </div>
-                <form asp-controller="Account" asp-action="Logout" method="post" class="ml-2">
-                    <button type="submit" class="text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-sm">
-                        Logout
-                    </button>
-                </form>
+                <div class="pb-3 pt-2 space-y-0.5 px-2">
+                    <a asp-controller="Dashboard" asp-action="Index"
+                       class="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-800 transition-colors">
+                        <span class="inline-flex items-center gap-3">
+                            <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800">
+                                <span class="material-symbols-outlined text-[16px] text-slate-500 dark:text-slate-400">dashboard</span>
+                            </span>
+                            <span>Dashboard</span>
+                        </span>
+                        <span class="material-symbols-outlined text-[16px] text-slate-400">chevron_right</span>
+                    </a>
+
+                    <a asp-controller="Target" asp-action="WeeklyProgress"
+                       class="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-800 transition-colors">
+                        <span class="inline-flex items-center gap-3">
+                            <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10">
+                                <span class="material-symbols-outlined text-[16px] text-primary">analytics</span>
+                            </span>
+                            <span>Daily Progress</span>
+                        </span>
+                        <span class="material-symbols-outlined text-[16px] text-slate-400">chevron_right</span>
+                    </a>
+
+                    <a asp-controller="Todo" asp-action="Index"
+                       class="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-800 transition-colors">
+                        <span class="inline-flex items-center gap-3">
+                            <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+                                <span class="material-symbols-outlined text-[16px] text-emerald-600 dark:text-emerald-400">checklist</span>
+                            </span>
+                            <span>Today's Tasks</span>
+                        </span>
+                        <span class="material-symbols-outlined text-[16px] text-slate-400">chevron_right</span>
+                    </a>
+
+                    @if (User.IsInRole("Admin"))
+                    {
+                        <a asp-controller="Admin" asp-action="Index"
+                           class="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-800 transition-colors">
+                            <span class="inline-flex items-center gap-3">
+                                <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10">
+                                    <span class="material-symbols-outlined text-[16px] text-primary">admin_panel_settings</span>
+                                </span>
+                                <span>Admin Panel</span>
+                            </span>
+                            <span class="material-symbols-outlined text-[16px] text-slate-400">chevron_right</span>
+                        </a>
+                    }
+
+                    <a asp-controller="Profile" asp-action="Index"
+                       class="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-100 dark:active:bg-slate-800 transition-colors">
+                        <span class="inline-flex items-center gap-3">
+                            <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800">
+                                <span class="material-symbols-outlined text-[16px] text-slate-500 dark:text-slate-400">person</span>
+                            </span>
+                            <span>Profile</span>
+                        </span>
+                        <span class="material-symbols-outlined text-[16px] text-slate-400">chevron_right</span>
+                    </a>
+
+                    <div class="my-1 border-t border-slate-100 dark:border-slate-800"></div>
+
+                    <form asp-controller="Account" asp-action="Logout" method="post">
+                        <button type="submit"
+                                class="w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 active:bg-red-50 dark:active:bg-red-900/20 transition-colors">
+                            <span class="inline-flex items-center gap-3">
+                                <span class="flex items-center justify-center w-7 h-7 rounded-lg bg-red-50 dark:bg-red-900/20">
+                                    <span class="material-symbols-outlined text-[16px] text-red-500">logout</span>
+                                </span>
+                                <span>Logout</span>
+                            </span>
+                            <span class="material-symbols-outlined text-[16px] text-red-400">chevron_right</span>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
+
+        <script>
+            (function () {
+                const toggleButton = document.getElementById('mobile-nav-toggle');
+                const panel = document.getElementById('mobile-nav-panel');
+
+                if (!toggleButton || !panel) return;
+
+                function toggleMenu() {
+                    panel.classList.toggle('hidden');
+                }
+
+                toggleButton.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    toggleMenu();
+                });
+
+                document.addEventListener('click', function (e) {
+                    if (!panel.classList.contains('hidden') &&
+                        !panel.contains(e.target) &&
+                        !toggleButton.contains(e.target)) {
+                        panel.classList.add('hidden');
+                    }
+                });
+            })();
+        </script>
     </header>
     
     <!-- Main Content -->
@@ -104,8 +331,748 @@
         }
         @RenderBody()
     </main>
+
+    @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+    @{
+        var telegramUrl = Configuration["AdminContact:TelegramUrl"];
+        var whatsappUrl = Configuration["AdminContact:WhatsAppUrl"];
+        var githubUrl = Configuration["AdminContact:GitHubUrl"] ?? "https://github.com/NourEldeenMahmoud";
+        var discordInviteUrl = Configuration["Community:DiscordInviteUrl"]?.Trim();
+        var communityBugReportUrl = Configuration["Community:BugReportUrl"]?.Trim();
+        var isAuth = User.Identity?.IsAuthenticated == true;
+        var hasContact = !string.IsNullOrEmpty(telegramUrl) || !string.IsNullOrEmpty(whatsappUrl) || !string.IsNullOrEmpty(githubUrl)
+            || (isAuth && (!string.IsNullOrEmpty(discordInviteUrl) || !string.IsNullOrEmpty(communityBugReportUrl)))
+            || isAuth;
+    }
+    @if (hasContact)
+    {
+        <div class="fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-2" style="padding-bottom: env(safe-area-inset-bottom)">
+            <div id="contactMenu" class="hidden flex flex-col items-end gap-2 mb-2">
+                @if (isAuth)
+                {
+                    @if (!string.IsNullOrEmpty(discordInviteUrl))
+                    {
+                        <a href="@discordInviteUrl" target="_blank" rel="noopener noreferrer"
+                           class="inline-flex items-center gap-2 pl-3 pr-4 py-2 rounded-xl bg-[#5865F2] text-white text-sm font-semibold shadow-lg hover:bg-[#4752C4] transition-colors whitespace-nowrap">
+                            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                            Join our Discord server
+                        </a>
+                    }
+                    @if (!string.IsNullOrEmpty(communityBugReportUrl))
+                    {
+                        <a href="@communityBugReportUrl" target="_blank" rel="noopener noreferrer"
+                           class="inline-flex items-center gap-2 pl-3 pr-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-semibold shadow-lg hover:bg-rose-700 transition-colors whitespace-nowrap">
+                            <span class="material-symbols-outlined text-[18px] shrink-0">bug_report</span>
+                            Report a bug
+                        </a>
+                    }
+                    else
+                    {
+                        <a asp-controller="Community" asp-action="Index"
+                           class="inline-flex items-center gap-2 pl-3 pr-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-semibold shadow-lg hover:bg-rose-700 transition-colors whitespace-nowrap">
+                            <span class="material-symbols-outlined text-[18px] shrink-0">bug_report</span>
+                            Report a bug
+                        </a>
+                    }
+                }
+                @if (!string.IsNullOrEmpty(githubUrl))
+                {
+                    <a href="@githubUrl" target="_blank" rel="noopener noreferrer"
+                       class="inline-flex items-center gap-2 pl-3 pr-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-700 text-white text-sm font-semibold shadow-lg hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors whitespace-nowrap">
+                        <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+                        GitHub
+                    </a>
+                }
+                @if (!string.IsNullOrEmpty(telegramUrl))
+                {
+                    <a href="@telegramUrl" target="_blank" rel="noopener noreferrer"
+                       class="inline-flex items-center gap-2 pl-3 pr-4 py-2 rounded-xl bg-[#0088cc] text-white text-sm font-semibold shadow-lg hover:bg-[#006da4] transition-colors whitespace-nowrap">
+                        <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                        Telegram
+                    </a>
+                }
+                @if (!string.IsNullOrEmpty(whatsappUrl))
+                {
+                    <a href="@whatsappUrl" target="_blank" rel="noopener noreferrer"
+                       class="inline-flex items-center gap-2 pl-3 pr-4 py-2 rounded-xl bg-[#25D366] text-white text-sm font-semibold shadow-lg hover:bg-[#1da851] transition-colors whitespace-nowrap">
+                        <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+                        WhatsApp
+                    </a>
+                }
+            </div>
+            <button type="button" onclick="document.getElementById('contactMenu').classList.toggle('hidden')"
+                    class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-white shadow-xl shadow-primary/30 hover:bg-primary/90 flex items-center justify-center transition-all active:scale-95 hover:scale-105">
+                <span class="material-symbols-outlined text-[22px] sm:text-[24px]">support_agent</span>
+            </button>
+        </div>
+    }
     
     @await RenderSectionAsync("Scripts", required: false)
     @await Html.PartialAsync("_NotificationSystem")
+
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+    <script>
+        // ── Theme toggle (dark / light) ──────────────────────────────
+        (function () {
+            const STORAGE_KEY = 'studytracker-theme';
+            const root = document.documentElement;
+
+            function applyTheme(theme) {
+                if (theme === 'dark') {
+                    root.classList.add('dark');
+                } else {
+                    root.classList.remove('dark');
+                }
+                const icon = document.getElementById('themeToggleIcon');
+                if (icon) {
+                    icon.textContent = root.classList.contains('dark') ? 'light_mode' : 'dark_mode';
+                }
+            }
+
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved === 'dark' || saved === 'light') {
+                applyTheme(saved);
+            }
+
+            const btn = document.getElementById('themeToggle');
+            if (btn) {
+                btn.addEventListener('click', () => {
+                    const next = root.classList.contains('dark') ? 'light' : 'dark';
+                    localStorage.setItem(STORAGE_KEY, next);
+                    applyTheme(next);
+                });
+            }
+        })();
+
+        // ── Render a badge icon — supports Material Symbols, emojis, uploaded images ──
+        function renderBadgeIcon(icon, cls) {
+            if (icon && (icon.startsWith('/') || icon.startsWith('http')))
+                return `<img src="${icon}" class="inline-block w-6 h-6 object-cover rounded-full align-middle" />`;
+            if (/^[a-z0-9_]+$/.test(icon))
+                return `<span class="material-symbols-outlined ${cls}">${icon}</span>`;
+            return `<span class="${cls} leading-none">${icon}</span>`;
+        }
+
+        // ── Hover tooltip for badges (bigger icon + description) ─────────
+        let badgeHoverTooltip = null;
+
+        function ensureBadgeHoverTooltip() {
+            if (badgeHoverTooltip) return badgeHoverTooltip;
+            const el = document.createElement('div');
+            el.id = 'badge-hover-tooltip';
+            el.className = 'fixed z-[260] hidden pointer-events-none';
+            document.body.appendChild(el);
+            badgeHoverTooltip = el;
+            return el;
+        }
+
+        function showBadgeHoverTooltip(trigger) {
+            const name = trigger.getAttribute('data-badge-name') || '';
+            const desc = trigger.getAttribute('data-badge-description') || '';
+            const icon = trigger.getAttribute('data-badge-icon') || '';
+            const tooltip = ensureBadgeHoverTooltip();
+
+            const iconHtml = renderBadgeIcon(icon, 'text-yellow-400 text-[26px]');
+            tooltip.innerHTML = `
+                <div class="rounded-2xl bg-slate-900/95 text-white shadow-2xl px-3 py-2 border border-slate-700 max-w-xs">
+                    <div class="flex items-start gap-2">
+                        <div class="shrink-0">
+                            ${iconHtml}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-[13px] font-semibold leading-snug truncate">${name}</p>
+                            ${desc ? `<p class="text-[11px] text-slate-200 leading-snug mt-0.5">${desc}</p>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+
+            tooltip.style.opacity = '0';
+            tooltip.classList.remove('hidden');
+
+            const rect = trigger.getBoundingClientRect();
+            const tipRect = tooltip.firstElementChild.getBoundingClientRect();
+            const top = window.scrollY + rect.top - tipRect.height - 8;
+            const left = window.scrollX + rect.left + rect.width / 2 - tipRect.width / 2;
+
+            tooltip.style.top = `${Math.max(8, top)}px`;
+            tooltip.style.left = `${Math.max(8, left)}px`;
+            tooltip.style.opacity = '1';
+        }
+
+        function hideBadgeHoverTooltip() {
+            if (!badgeHoverTooltip) return;
+            badgeHoverTooltip.classList.add('hidden');
+        }
+
+        // ── Global badge toast notification ──────────────────────────────
+        function showBadgeNotification(name, icon, description) {
+            const existing = document.querySelectorAll('.badge-toast');
+            const offset = existing.length * 88; // stack downward
+            const toast = document.createElement('div');
+            toast.className = 'badge-toast fixed z-[300] flex items-center gap-3 bg-white dark:bg-slate-800 border border-yellow-300 dark:border-yellow-600 rounded-2xl shadow-2xl px-4 py-3 max-w-[min(20rem,calc(100vw-1.5rem))] transform -translate-y-4 opacity-0 transition-all duration-500';
+            toast.style.top = (72 + offset) + 'px';
+            toast.style.right = '12px';
+            toast.innerHTML = `
+                <div class="flex-shrink-0 w-11 h-11 rounded-full bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center">
+                    ${renderBadgeIcon(icon, 'text-yellow-500 text-[24px]')}
+                </div>
+                <div class="min-w-0">
+                    <p class="text-xs font-semibold text-yellow-600 dark:text-yellow-400 uppercase tracking-wider mb-0.5">Badge Earned!</p>
+                    <p class="text-sm font-bold text-slate-900 dark:text-white leading-tight">${name}</p>
+                    ${description ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">${description}</p>` : ''}
+                </div>
+                <span class="material-symbols-outlined text-[16px] text-slate-300 dark:text-slate-600 ml-auto shrink-0 cursor-pointer hover:text-slate-500 self-start" onclick="this.closest('.badge-toast').remove()">close</span>
+            `;
+            document.body.appendChild(toast);
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                toast.classList.remove('-translate-y-4', 'opacity-0');
+                toast.classList.add('translate-y-0', 'opacity-100');
+            }));
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-4', 'opacity-0');
+                setTimeout(() => toast.remove(), 500);
+            }, 5500);
+        }
+
+        // ── Auto-check for pending badge notifications on every page load ──
+        (async function checkPendingBadges() {
+            try {
+                const res = await fetch('/Badge/PendingNotifications', { credentials: 'same-origin' });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.badges || data.badges.length === 0) return;
+                // Delay slightly so the page has settled, then show one by one
+                setTimeout(() => {
+                    data.badges.forEach((badge, i) => {
+                        setTimeout(() => {
+                            showBadgeNotification(badge.name, badge.icon, badge.description);
+                        }, i * 1800);
+                    });
+                }, 800);
+            } catch (_) { /* silently ignore */ }
+        })();
+        </script>
+    }
+
+    <script>
+        // ── Mini profile tooltip for avatars ─────────────────────────────
+        (function () {
+            const cache = {};
+            let tooltipEl;
+            let activeAvatar = null;
+
+            function ensureTooltip() {
+                if (tooltipEl) return tooltipEl;
+                tooltipEl = document.createElement('div');
+                tooltipEl.id = 'mini-profile-tooltip';
+                tooltipEl.className = 'fixed z-[260] hidden pointer-events-none';
+                document.body.appendChild(tooltipEl);
+                return tooltipEl;
+            }
+
+            async function fetchMiniProfile(userId) {
+                if (cache[userId]) return cache[userId];
+                try {
+                    const res = await fetch(`/Profile/MiniProfile?userId=${encodeURIComponent(userId)}`, {
+                        credentials: 'same-origin'
+                    });
+                    if (!res.ok) return null;
+                    const data = await res.json();
+                    cache[userId] = data;
+                    return data;
+                } catch {
+                    return null;
+                }
+            }
+
+            function buildTooltipHtml(data) {
+                const hrs = (data.totalHours || 0).toFixed(1);
+                const todayMins = data.todayMinutes || 0;
+                const streak = data.streak || 0;
+                const badges = data.badges || [];
+
+                const badgeHtml = badges.map(b =>
+                    `<span class="inline-flex items-center justify-center w-7 h-7 rounded-full ${b.color || ''} overflow-hidden">
+                        ${renderBadgeIcon(b.icon, 'text-[18px]')}
+                    </span>`).join('');
+
+                const weekRank = data.weeklyRank > 0 ? `#${data.weeklyRank}` : '—';
+                const dayRank = data.dailyRank > 0 ? `#${data.dailyRank}` : '—';
+
+                return `
+                <div class="rounded-2xl bg-slate-900/95 text-white shadow-2xl px-3 py-2.5 border border-slate-700 max-w-xs">
+                    <div class="flex items-start gap-3">
+                        <div class="shrink-0">
+                            <div class="w-10 h-10 rounded-full bg-slate-700 overflow-hidden flex items-center justify-center">
+                                ${data.profilePictureUrl
+                                    ? `<img src="${data.profilePictureUrl}" class="w-full h-full object-cover" />`
+                                    : `<span class="text-sm font-semibold">${(data.fullName || '?')[0] ?? '?'}</span>`}
+                            </div>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold leading-snug truncate">${data.fullName || 'User'}</p>
+                            <div class="flex flex-wrap gap-1 mt-1 text-[10px] text-slate-300">
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-800">
+                                    <span class="material-symbols-outlined text-[12px]">today</span>
+                                    <span>Daily rank ${dayRank}</span>
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-800">
+                                    <span class="material-symbols-outlined text-[12px]">calendar_view_week</span>
+                                    <span>Weekly rank ${weekRank}</span>
+                                </span>
+                            </div>
+                            <div class="mt-1 text-[11px] text-slate-200">
+                                <span class="inline-flex items-center gap-1 mr-2">
+                                    <span class="material-symbols-outlined text-[12px]">schedule</span>
+                                    <span>${hrs}h total</span>
+                                </span>
+                                <span class="inline-flex items-center gap-1 mr-2">
+                                    <span class="material-symbols-outlined text-[12px]">bolt</span>
+                                    <span>${todayMins}m today</span>
+                                </span>
+                                <span class="inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[12px]">local_fire_department</span>
+                                    <span>${streak} day streak</span>
+                                </span>
+                            </div>
+                            ${badgeHtml
+                                ? `<div class="flex flex-wrap items-center gap-1.5 mt-2 max-w-[16rem]">${badgeHtml}</div>`
+                                : ''}
+                            <a href="#" class="inline-flex items-center gap-1 text-[11px] text-primary mt-2 underline decoration-primary/50 decoration-dotted hover:text-primary/80"
+                               data-mini-profile-full-link="1">
+                                <span class="material-symbols-outlined text-[12px]">person</span>
+                                <span>View full profile</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            function positionTooltip(trigger, tooltip) {
+                const rect = trigger.getBoundingClientRect();
+                const content = tooltip.firstElementChild;
+                if (!content) return;
+                const tipRect = content.getBoundingClientRect();
+
+                // Prefer showing below the avatar
+                let top = window.scrollY + rect.bottom + 8;
+                let left = window.scrollX + rect.left + rect.width / 2 - tipRect.width / 2;
+
+                // Clamp horizontally
+                const minLeft = window.scrollX + 8;
+                const maxLeft = window.scrollX + window.innerWidth - tipRect.width - 8;
+                if (left < minLeft) left = minLeft;
+                if (left > maxLeft) left = maxLeft;
+
+                // If tooltip would go below viewport, flip above
+                const bottom = top + tipRect.height;
+                const viewportBottom = window.scrollY + window.innerHeight - 8;
+                if (bottom > viewportBottom) {
+                    top = window.scrollY + rect.top - tipRect.height - 8;
+                }
+
+                tooltip.style.top = `${top}px`;
+                tooltip.style.left = `${left}px`;
+            }
+
+            async function showTooltipForAvatar(avatar) {
+                const userId = avatar.getAttribute('data-user-id');
+                if (!userId) return;
+
+                const data = await fetchMiniProfile(userId);
+                if (!data) return;
+
+                activeAvatar = avatar;
+
+                const tip = ensureTooltip();
+                tip.innerHTML = buildTooltipHtml(data);
+                tip.classList.remove('hidden');
+                tip.style.opacity = '0';
+
+                document.querySelectorAll('[data-mini-profile-full-link]').forEach(link => {
+                    link.addEventListener('click', evt => {
+                        evt.preventDefault();
+                        window.location.href = `/Profile/Public?userId=${encodeURIComponent(userId)}`;
+                    });
+                });
+
+                requestAnimationFrame(() => {
+                    positionTooltip(avatar, tip);
+                    tip.style.opacity = '1';
+                });
+            }
+
+            function hideTooltip() {
+                activeAvatar = null;
+                if (!tooltipEl) return;
+                tooltipEl.classList.add('hidden');
+            }
+
+            function handleEnter(e) {
+                const avatar = e.currentTarget;
+                if (!(avatar instanceof HTMLElement)) return;
+                avatar.style.cursor = 'pointer';
+                showTooltipForAvatar(avatar);
+            }
+
+            function handleLeave() {
+                hideTooltip();
+            }
+
+            function handleClick(e) {
+                const avatar = e.currentTarget;
+                if (!(avatar instanceof HTMLElement)) return;
+                const userId = avatar.getAttribute('data-user-id');
+                if (!userId) return;
+                window.location.href = `/Profile/Public?userId=${encodeURIComponent(userId)}`;
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                document.querySelectorAll('.user-avatar[data-user-id]').forEach(el => {
+                    el.addEventListener('mouseenter', handleEnter);
+                    el.addEventListener('mouseleave', handleLeave);
+                    el.addEventListener('click', handleClick);
+                    el.style.cursor = 'pointer';
+                });
+            });
+        })();
+
+        // ── Notification dropdown ─────────────────────────────────────
+        (function () {
+            const bell = document.getElementById('notificationBell');
+            const dropdown = document.getElementById('notificationDropdown');
+            const list = document.getElementById('notificationList');
+            const badge = document.getElementById('notificationBadge');
+            const markAllBtn = document.getElementById('notificationMarkAll');
+
+            if (!bell || !dropdown || !list || !badge || !markAllBtn) return;
+
+            async function updateBadgeOnly() {
+                try {
+                    const res = await fetch('/Notification/UnreadCount', { credentials: 'same-origin' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const count = typeof data.count === 'number' ? data.count : 0;
+                    if (count > 0) {
+                        badge.textContent = count > 9 ? '9+' : String(count);
+                        badge.classList.remove('hidden');
+                        badge.classList.add('flex');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                } catch { /* ignore */ }
+            }
+
+            async function loadNotifications() {
+                try {
+                    const res = await fetch('/Notification/Recent', { credentials: 'same-origin' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (!data.success) return;
+                    const items = data.notifications || [];
+
+                    if (!items.length) {
+                        list.innerHTML = '<div class="px-4 py-6 text-center text-xs text-slate-400 dark:text-slate-500">No notifications yet.</div>';
+                        badge.classList.add('hidden');
+                        return;
+                    }
+
+                    let unread = 0;
+                    const parts = items.map(n => {
+                        if (!n.isRead) unread++;
+                        const created = n.createdAtUtc ? new Date(n.createdAtUtc) : null;
+                        let when = '';
+                        if (created) {
+                            const diff = (Date.now() - created.getTime()) / 60000;
+                            if (diff < 1) when = 'just now';
+                            else if (diff < 60) when = `${Math.round(diff)} min ago`;
+                            else if (diff < 60 * 24) when = `${Math.round(diff / 60)} h ago`;
+                            else when = created.toLocaleDateString();
+                        }
+
+                        return `
+                            <button type="button"
+                                    class="w-full text-left px-4 py-3 flex items-start gap-3 text-xs ${n.isRead ? 'bg-white dark:bg-slate-900' : 'bg-blue-50/70 dark:bg-slate-800'}">
+                                <span class="mt-0.5 material-symbols-outlined text-[18px] ${n.isRead ? 'text-slate-400' : 'text-primary'}">
+                                    ${n.type === 'BadgeEarned' ? 'workspace_premium' :
+                                        n.type === 'StreakRisk' ? 'local_fire_department' :
+                                        n.type === 'Milestone' ? 'milestone' :
+                                        n.type === 'RankDrop' ? 'trending_down' : 'notifications'}
+                                </span>
+                                <span class="flex-1 min-w-0">
+                                    <span class="block text-slate-800 dark:text-slate-100">${n.message}</span>
+                                    ${when ? `<span class="block text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">${when}</span>` : ''}
+                                </span>
+                            </button>`;
+                    }).join('');
+
+                    list.innerHTML = parts;
+
+                    if (unread > 0) {
+                        badge.textContent = unread > 9 ? '9+' : String(unread);
+                        badge.classList.remove('hidden');
+                        badge.classList.add('flex');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                } catch {
+                    list.innerHTML = '<div class="px-4 py-6 text-center text-xs text-red-500">Failed to load notifications.</div>';
+                }
+            }
+
+            updateBadgeOnly();
+            setInterval(updateBadgeOnly, 60000);
+            window.refreshNotificationBadge = updateBadgeOnly;
+
+            function toggleDropdown() {
+                const isHidden = dropdown.classList.contains('hidden');
+                if (isHidden) {
+                    dropdown.classList.remove('hidden');
+                    loadNotifications();
+                } else {
+                    dropdown.classList.add('hidden');
+                }
+            }
+
+            bell.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleDropdown();
+            });
+
+            markAllBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                try {
+                    await fetch('/Notification/MarkAllRead', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || ''
+                        },
+                        body: JSON.stringify({})
+                    });
+                    await loadNotifications();
+                    await updateBadgeOnly();
+                } catch {
+                    showNotification('Could not mark notifications as read.', 'error');
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!dropdown.classList.contains('hidden') &&
+                    !dropdown.contains(e.target) &&
+                    !bell.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        })();
+
+        // ── Mobile theme toggle ──────────────────────────────────────
+        (function () {
+            const STORAGE_KEY = 'studytracker-theme';
+            const root = document.documentElement;
+            const mobileBtn = document.getElementById('themeToggleMobile');
+            const mobileIcon = document.getElementById('themeToggleIconMobile');
+
+            function syncMobileIcon() {
+                if (!mobileIcon) return;
+                mobileIcon.textContent = root.classList.contains('dark') ? 'light_mode' : 'dark_mode';
+            }
+
+            syncMobileIcon();
+
+            if (mobileBtn) {
+                mobileBtn.addEventListener('click', () => {
+                    const next = root.classList.contains('dark') ? 'light' : 'dark';
+                    localStorage.setItem(STORAGE_KEY, next);
+                    if (next === 'dark') root.classList.add('dark'); else root.classList.remove('dark');
+                    const icon = document.getElementById('themeToggleIcon');
+                    if (icon) icon.textContent = root.classList.contains('dark') ? 'light_mode' : 'dark_mode';
+                    syncMobileIcon();
+                });
+            }
+        })();
+
+        // ── Mobile notification dropdown ──────────────────────────────
+        (function () {
+            const bell = document.getElementById('notificationBellMobile');
+            const dropdown = document.getElementById('notificationDropdownMobile');
+            const list = document.getElementById('notificationListMobile');
+            const badge = document.getElementById('notificationBadgeMobile');
+            const markAllBtn = document.getElementById('notificationMarkAllMobile');
+
+            if (!bell || !dropdown || !list || !badge) return;
+
+            async function loadMobileNotifications() {
+                try {
+                    const res = await fetch('/Notification/Recent', { credentials: 'same-origin' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (!data.success) return;
+                    const items = data.notifications || [];
+
+                    if (!items.length) {
+                        list.innerHTML = '<div class="px-4 py-6 text-center text-xs text-slate-400 dark:text-slate-500">No notifications yet.</div>';
+                        badge.classList.add('hidden');
+                        return;
+                    }
+
+                    let unread = 0;
+                    const parts = items.map(n => {
+                        if (!n.isRead) unread++;
+                        const created = n.createdAtUtc ? new Date(n.createdAtUtc) : null;
+                        let when = '';
+                        if (created) {
+                            const diff = (Date.now() - created.getTime()) / 60000;
+                            if (diff < 1) when = 'just now';
+                            else if (diff < 60) when = `${Math.round(diff)}m ago`;
+                            else if (diff < 60 * 24) when = `${Math.round(diff / 60)}h ago`;
+                            else when = created.toLocaleDateString();
+                        }
+                        return `
+                            <button type="button"
+                                    class="w-full text-left px-4 py-3 flex items-start gap-3 text-xs ${n.isRead ? 'bg-white dark:bg-slate-900' : 'bg-blue-50/70 dark:bg-slate-800'}">
+                                <span class="mt-0.5 material-symbols-outlined text-[18px] ${n.isRead ? 'text-slate-400' : 'text-primary'}">
+                                    ${n.type === 'BadgeEarned' ? 'workspace_premium' : n.type === 'StreakRisk' ? 'local_fire_department' : 'notifications'}
+                                </span>
+                                <span class="flex-1 min-w-0">
+                                    <span class="block text-slate-800 dark:text-slate-100">${n.message}</span>
+                                    ${when ? `<span class="block text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">${when}</span>` : ''}
+                                </span>
+                            </button>`;
+                    }).join('');
+
+                    list.innerHTML = parts;
+                    if (unread > 0) {
+                        badge.textContent = unread > 9 ? '9+' : String(unread);
+                        badge.classList.remove('hidden');
+                        badge.classList.add('flex');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                } catch { list.innerHTML = '<div class="px-4 py-6 text-center text-xs text-red-500">Failed to load.</div>'; }
+            }
+
+            bell.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = dropdown.classList.contains('hidden');
+                if (isHidden) { dropdown.classList.remove('hidden'); loadMobileNotifications(); }
+                else { dropdown.classList.add('hidden'); }
+            });
+
+            if (markAllBtn) {
+                markAllBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    try {
+                        await fetch('/Notification/MarkAllRead', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' },
+                            body: JSON.stringify({})
+                        });
+                        await loadMobileNotifications();
+                    } catch {}
+                });
+            }
+
+            document.addEventListener('click', (e) => {
+                if (!dropdown.classList.contains('hidden') && !dropdown.contains(e.target) && !bell.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+
+            // Sync badge count with desktop bell
+            async function syncMobileBadge() {
+                try {
+                    const res = await fetch('/Notification/UnreadCount', { credentials: 'same-origin' });
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const count = typeof data.count === 'number' ? data.count : 0;
+                    if (count > 0) {
+                        badge.textContent = count > 9 ? '9+' : String(count);
+                        badge.classList.remove('hidden');
+                        badge.classList.add('flex');
+                    } else { badge.classList.add('hidden'); }
+                } catch {}
+            }
+            syncMobileBadge();
+            setInterval(syncMobileBadge, 60000);
+        })();
+
+        // ── Timer expiry check (runs on every page) ──────────────────
+        (function () {
+            const uid = '@Html.Raw(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "")';
+            if (!uid) return;
+            const key = 'focusSessionState_' + uid;
+
+            function tryPlayAlarm() {
+                try {
+                    const a = new Audio('/alarm.mp3');
+                    a.volume = 0.8;
+                    a.play().catch(() => {});
+                } catch (_) {}
+            }
+
+            function showToast(msg) {
+                const t = document.createElement('div');
+                t.style.cssText = [
+                    'position:fixed','top:72px','right:12px','z-index:99999',
+                    'background:#4f46e5','color:#fff','padding:14px 18px',
+                    'border-radius:14px','font-size:14px','font-weight:600',
+                    'box-shadow:0 8px 30px rgba(79,70,229,.35)','max-width:min(320px,calc(100vw - 24px))',
+                    'display:flex','flex-direction:column','gap:6px','cursor:pointer'
+                ].join(';');
+                t.innerHTML = '<span>&#9200; Focus session complete!</span>'
+                    + '<a href="/Dashboard" style="font-size:12px;color:#c7d2fe;text-decoration:underline;">Go to Dashboard &rarr;</a>';
+                t.onclick = () => t.remove();
+                document.body.appendChild(t);
+                setTimeout(() => { if (t.parentNode) t.remove(); }, 9000);
+            }
+
+            function fireNotification() {
+                try {
+                    if (Notification.permission === 'granted') {
+                        new Notification('StudyTracker', {
+                            body: 'Your focus session has finished! Great work.',
+                            icon: '/favicon.ico'
+                        });
+                    }
+                } catch (_) {}
+            }
+
+            try {
+                const raw = localStorage.getItem(key);
+                if (!raw) return;
+                const st = JSON.parse(raw);
+                if (!st || !st.isRunning || !st.endTimeMs) return;
+
+                // Timer has expired while on another page
+                if (Date.now() >= st.endTimeMs) {
+                    // Mark as finished in localStorage
+                    st.isRunning = false;
+                    st.mode = 'idle';
+                    localStorage.setItem(key, JSON.stringify(st));
+
+                    tryPlayAlarm();
+                    fireNotification();
+                    showToast();
+                }
+            } catch (_) {}
+        })();
+
+        // ── Clear timer state on logout ──────────────────────────────────
+        (function () {
+            const uid = '@Html.Raw(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "")';
+            if (!uid) return;
+            const key = 'focusSessionState_' + uid;
+            document.querySelectorAll('form').forEach(function (form) {
+                if (form.action && form.action.toLowerCase().includes('logout')) {
+                    form.addEventListener('submit', function () {
+                        try { localStorage.removeItem(key); } catch (_) {}
+                    });
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

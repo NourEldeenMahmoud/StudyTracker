@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using StudyTracker.Data;
+using StudyTracker.Helpers;
 using StudyTracker.Models;
 using StudyTracker.Models.ViewModels;
 
@@ -8,24 +10,46 @@ namespace StudyTracker.Services
     public class StudySessionService : IStudySessionService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IMemoryCache _memoryCache;
 
-        public StudySessionService(ApplicationDbContext context)
+        public StudySessionService(ApplicationDbContext context, IMemoryCache memoryCache)
         {
             _context = context;
+            _memoryCache = memoryCache;
         }
 
         public async Task<StudySession> AddSessionAsync(string userId, AddSessionViewModel model)
         {
+            if (string.IsNullOrWhiteSpace(model.Notes))
+                throw new InvalidOperationException("Please describe what you studied.");
+
+            var source = string.IsNullOrWhiteSpace(model.Source) ? "manual" : model.Source.Trim();
+            var isTimer = string.Equals(source, "timer", StringComparison.OrdinalIgnoreCase);
+
+            // Timer sessions always use Cairo "today" so Date matches CreatedAt in local display and daily totals.
+            var sessionDate = isTimer ? TimeZoneHelper.GetTodayInCairo() : model.Date;
+
+            if (isTimer && !string.IsNullOrWhiteSpace(model.TimerRunId))
+            {
+                var dedupeKey = $"StudyTimerLog:{userId}:{model.TimerRunId.Trim()}";
+                if (_memoryCache.TryGetValue(dedupeKey, out StudySession? cachedSession) && cachedSession != null)
+                    return cachedSession;
+            }
+
+            // Validate: Max 16 hours per session
+            if (model.DurationMinutes > 16 * 60)
+                throw new InvalidOperationException("Session duration cannot exceed 16 hours.");
+
             // Validate: Max 16 hours per day
-            var dailyTotal = await GetDailyTotalAsync(userId, model.Date);
+            var dailyTotal = await GetDailyTotalAsync(userId, sessionDate);
             if (dailyTotal + model.DurationMinutes > 16 * 60)
             {
                 throw new InvalidOperationException("Cannot exceed 16 hours per day.");
             }
 
-            // Validate: No future dates
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            if (model.Date > today)
+            // Validate: No future dates (use Cairo today)
+            var today = TimeZoneHelper.GetTodayInCairo();
+            if (sessionDate > today)
             {
                 throw new InvalidOperationException("Cannot add sessions for future dates.");
             }
@@ -33,15 +57,25 @@ namespace StudyTracker.Services
             var session = new StudySession
             {
                 UserId = userId,
-                Date = model.Date,
+                Date = sessionDate,
                 DurationMinutes = model.DurationMinutes,
                 Notes = model.Notes,
+                Source = source,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
 
             _context.StudySessions.Add(session);
             await _context.SaveChangesAsync();
+
+            if (isTimer && !string.IsNullOrWhiteSpace(model.TimerRunId))
+            {
+                var dedupeKey = $"StudyTimerLog:{userId}:{model.TimerRunId.Trim()}";
+                _memoryCache.Set(dedupeKey, session, new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(48)
+                });
+            }
 
             return session;
         }
@@ -87,6 +121,10 @@ namespace StudyTracker.Services
 
             if (!isAdmin && session.UserId != userId)
                 return false;
+
+            // Validate: Max 16 hours per session
+            if (model.DurationMinutes > 16 * 60)
+                throw new InvalidOperationException("Session duration cannot exceed 16 hours.");
 
             // Validate: Max 16 hours per day (excluding current session)
             // Use session.UserId for validation, not the parameter userId (important for admin edits)

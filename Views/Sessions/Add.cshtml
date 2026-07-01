@@ -50,9 +50,9 @@
                 
                 <!-- Notes Input -->
                 <div class="flex flex-col gap-2">
-                    <label class="text-slate-900 dark:text-slate-100 text-base font-medium" asp-for="Notes">Notes <span class="text-slate-400 font-normal text-sm ml-1">(Optional)</span></label>
+                    <label class="text-slate-900 dark:text-slate-100 text-base font-medium" asp-for="Notes">Notes</label>
                     <div class="relative group">
-                        <textarea asp-for="Notes" class="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all text-base resize-none" placeholder="Add any details about your session, topics covered, or areas to review..." rows="4"></textarea>
+                        <textarea asp-for="Notes" required minlength="1" class="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all text-base resize-none" placeholder="Describe what you studied (e.g. topics, chapters, exercises)..." rows="4"></textarea>
                         <div class="absolute right-4 top-4 text-slate-400 group-focus-within:text-primary transition-colors">
                             <span class="material-symbols-outlined">edit_note</span>
                         </div>
@@ -61,15 +61,13 @@
                 </div>
                 
                 <!-- Actions -->
-                <div class="flex items-center justify-end gap-4 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                    <a asp-controller="Dashboard" asp-action="Index" class="px-6 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white font-medium transition-colors text-sm">
+                <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <a asp-controller="Dashboard" asp-action="Index" class="flex items-center justify-center px-6 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white font-medium transition-colors text-sm border border-slate-200 dark:border-slate-700 sm:border-0">
                         Cancel
                     </a>
-                    <button type="submit" class="group relative px-8 py-3 rounded-xl bg-primary hover:bg-blue-600 text-white font-bold text-sm shadow-lg shadow-blue-500/30 transition-all hover:shadow-blue-500/40 hover:-translate-y-0.5 active:translate-y-0">
-                        <span class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-[20px]">check_circle</span>
-                            Save Session
-                        </span>
+                    <button type="submit" class="group relative flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-primary hover:bg-blue-600 text-white font-bold text-sm shadow-lg shadow-blue-500/30 transition-all hover:shadow-blue-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-95">
+                        <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                        Save Session
                     </button>
                 </div>
             </form>
@@ -79,4 +77,32 @@
 
 @section Scripts {
     @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        (function() {
+            const form = document.querySelector('main form[method="post"]');
+            if (!form) return;
+            form.addEventListener('submit', function(e) {
+                const hoursInput = form.querySelector('input[name="Hours"]');
+                const minutesInput = form.querySelector('input[name="Minutes"]');
+                const hours = parseInt(hoursInput?.value) || 0;
+                const minutes = parseInt(minutesInput?.value) || 0;
+                const totalMinutes = hours * 60 + minutes;
+                if (totalMinutes > 16 * 60) {
+                    e.preventDefault();
+                    let errEl = form.querySelector('.session-duration-error');
+                    if (!errEl) {
+                        errEl = document.createElement('div');
+                        errEl.className = 'session-duration-error text-red-500 text-sm bg-red-50 dark:bg-red-900/20 px-4 py-3 rounded-lg border border-red-200 dark:border-red-800 mb-4';
+                        errEl.setAttribute('role', 'alert');
+                        form.insertBefore(errEl, form.firstChild);
+                    }
+                    errEl.textContent = 'Session duration cannot exceed 16 hours.';
+                    errEl.hidden = false;
+                    (hoursInput || form).focus();
+                    return false;
+                }
+                form.querySelector('.session-duration-error')?.remove();
+            });
+        })();
+    </script>
 }

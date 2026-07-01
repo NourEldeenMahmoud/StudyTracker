@@ -10,6 +10,8 @@ namespace StudyTracker.Services
         Task<bool> SuspendUserAsync(string userId);
         Task<bool> UnsuspendUserAsync(string userId);
         Task<bool> MakeAdminAsync(string userId);
-        Task<List<AdminSessionViewModel>> GetAllSessionsAsync(string? userId = null, DateOnly? startDate = null, DateOnly? endDate = null);
+        Task<PagedResult<AdminSessionViewModel>> GetAllSessionsAsync(string? userId = null, DateOnly? startDate = null, DateOnly? endDate = null, int page = 1, int pageSize = 25);
+        Task<int> ResetCurrentWeekSessionsAsync();
+        Task<bool> DeleteUserCompletelyAsync(string userId);
     }
 }

@@ -12,15 +12,18 @@ namespace StudyTracker.Services
         private readonly ApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILeaderboardService _leaderboardService;
+        private readonly IImageService _imageService;
 
         public AdminService(
             ApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
-            ILeaderboardService leaderboardService)
+            ILeaderboardService leaderboardService,
+            IImageService imageService)
         {
             _context = context;
             _userManager = userManager;
             _leaderboardService = leaderboardService;
+            _imageService = imageService;
         }
 
         public async Task<AdminDashboardStatsViewModel> GetDashboardStatsAsync()
@@ -57,8 +60,8 @@ namespace StudyTracker.Services
 
             if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                query = query.Where(u => 
-                    u.FullName.Contains(searchTerm) || 
+                query = query.Where(u =>
+                    u.FullName.Contains(searchTerm) ||
                     u.Email!.Contains(searchTerm));
             }
 
@@ -116,30 +119,31 @@ namespace StudyTracker.Services
             return true;
         }
 
-        public async Task<List<AdminSessionViewModel>> GetAllSessionsAsync(string? userId = null, DateOnly? startDate = null, DateOnly? endDate = null)
+        public async Task<PagedResult<AdminSessionViewModel>> GetAllSessionsAsync(string? userId = null, DateOnly? startDate = null, DateOnly? endDate = null, int page = 1, int pageSize = 25)
         {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 25;
+
             var query = _context.StudySessions
-                .Include(s => s.User)
+                .AsNoTracking()
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(userId))
-            {
                 query = query.Where(s => s.UserId == userId);
-            }
 
             if (startDate.HasValue)
-            {
                 query = query.Where(s => s.Date >= startDate.Value);
-            }
 
             if (endDate.HasValue)
-            {
                 query = query.Where(s => s.Date <= endDate.Value);
-            }
 
-            return await query
+            var totalCount = await query.CountAsync();
+
+            var items = await query
                 .OrderByDescending(s => s.Date)
                 .ThenByDescending(s => s.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(s => new AdminSessionViewModel
                 {
                     Id = s.Id,
@@ -151,6 +155,80 @@ namespace StudyTracker.Services
                     CreatedAt = s.CreatedAt
                 })
                 .ToListAsync();
+
+            return new PagedResult<AdminSessionViewModel>
+            {
+                Items = items,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
+        }
+
+        public async Task<int> ResetCurrentWeekSessionsAsync()
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var weekStart = DateHelper.GetWeekStartDate(today);
+            var weekEnd = weekStart.AddDays(6);
+
+            var sessions = await _context.StudySessions
+                .Where(s => s.Date >= weekStart && s.Date <= weekEnd)
+                .ToListAsync();
+
+            if (!sessions.Any())
+                return 0;
+
+            _context.StudySessions.RemoveRange(sessions);
+            var deletedCount = await _context.SaveChangesAsync();
+            return deletedCount;
+        }
+
+        public async Task<bool> DeleteUserCompletelyAsync(string userId)
+        {
+            var user = await _userManager.Users
+                .Include(u => u.StudySessions)
+                .Include(u => u.WeeklyTargets)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+                return false;
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                if (user.StudySessions.Any())
+                {
+                    _context.StudySessions.RemoveRange(user.StudySessions);
+                }
+
+                if (user.WeeklyTargets.Any())
+                {
+                    _context.UserWeeklyTargets.RemoveRange(user.WeeklyTargets);
+                }
+
+                await _context.SaveChangesAsync();
+
+                if (!string.IsNullOrEmpty(user.ProfilePictureUrl))
+                {
+                    await _imageService.DeleteProfilePictureAsync(user.ProfilePictureUrl);
+                }
+
+                var result = await _userManager.DeleteAsync(user);
+                if (!result.Succeeded)
+                {
+                    await transaction.RollbackAsync();
+                    return false;
+                }
+
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
     }
 }

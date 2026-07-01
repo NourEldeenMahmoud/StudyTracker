@@ -19,6 +19,16 @@ namespace StudyTracker.Services
         Task DeleteProfilePictureAsync(string? imageUrl);
 
         /// <summary>
+        /// Uploads a badge icon image and returns its relative URL.
+        /// </summary>
+        Task<string> UploadBadgeIconAsync(IFormFile file, string badgeId);
+
+        /// <summary>
+        /// Deletes a badge icon by its URL.
+        /// </summary>
+        Task DeleteBadgeIconAsync(string? imageUrl);
+
+        /// <summary>
         /// Validates if the file is a valid image
         /// </summary>
         /// <param name="file">The file to validate</param>

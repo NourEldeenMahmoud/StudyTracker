@@ -17,7 +17,7 @@ namespace StudyTracker.Services
 
         public async Task<UserWeeklyTarget?> GetCurrentTargetAsync(string userId)
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var today = TimeZoneHelper.GetTodayInCairo();
             var weekStart = DateHelper.GetWeekStartDate(today);
 
             return await _context.UserWeeklyTargets
@@ -103,60 +103,35 @@ namespace StudyTracker.Services
         public async Task<WeeklyTargetProgressViewModel> CalculateDailyProgressAsync(string userId, DateOnly date)
         {
             var weekStart = DateHelper.GetWeekStartDate(date);
-            var target = await GetCurrentTargetAsync(userId);
-
-            if (target == null || target.WeekStartDate != weekStart)
-            {
-                return new WeeklyTargetProgressViewModel
-                {
-                    DailyTargetMinutes = 0,
-                    TodayDoneMinutes = 0,
-                    StreakDays = 0
-                };
-            }
+            var target = await _context.UserWeeklyTargets
+                .Where(t => t.UserId == userId && t.WeekStartDate == weekStart)
+                .FirstOrDefaultAsync();
 
             var todayDone = await _context.StudySessions
                 .Where(s => s.UserId == userId && s.Date == date)
                 .SumAsync(s => (int?)s.DurationMinutes) ?? 0;
 
-            // Calculate streak - continues across weeks
-            // Pre-fetch all targets for better performance
-            var allTargets = await _context.UserWeeklyTargets
-                .Where(t => t.UserId == userId)
-                .OrderByDescending(t => t.WeekStartDate)
+            var dailyTargetMinutes = target?.DailyTargetMinutes ?? 0;
+
+            // Activity-based streak: consecutive days with at least one study session (any minutes)
+            var sessionDates = await _context.StudySessions
+                .Where(s => s.UserId == userId)
+                .Select(s => s.Date)
+                .Distinct()
                 .ToListAsync();
-            
+            var sessionDateSet = new HashSet<DateOnly>(sessionDates);
             var streakDays = 0;
-            var checkDate = date;
-            var maxDaysBack = 365; // Limit to 1 year to prevent infinite loops
-            
-            while (streakDays < maxDaysBack)
+            var startDate = sessionDateSet.Contains(date) ? date : date.AddDays(-1);
+            var checkDate = startDate;
+            while (sessionDateSet.Contains(checkDate))
             {
-                var dayDone = await _context.StudySessions
-                    .Where(s => s.UserId == userId && s.Date == checkDate)
-                    .SumAsync(s => (int?)s.DurationMinutes) ?? 0;
-
-                // Get the target for this day's week (or use current target if no target found)
-                var dayWeekStart = DateHelper.GetWeekStartDate(checkDate);
-                var dayTarget = allTargets.FirstOrDefault(t => t.WeekStartDate == dayWeekStart);
-
-                // Use current target if no target found for that week, or use the found target
-                var requiredMinutes = dayTarget?.DailyTargetMinutes ?? target.DailyTargetMinutes;
-
-                if (dayDone >= requiredMinutes)
-                {
-                    streakDays++;
-                    checkDate = checkDate.AddDays(-1);
-                }
-                else
-                {
-                    break;
-                }
+                streakDays++;
+                checkDate = checkDate.AddDays(-1);
             }
 
             return new WeeklyTargetProgressViewModel
             {
-                DailyTargetMinutes = target.DailyTargetMinutes,
+                DailyTargetMinutes = dailyTargetMinutes,
                 TodayDoneMinutes = todayDone,
                 StreakDays = streakDays
             };
@@ -164,47 +139,21 @@ namespace StudyTracker.Services
 
         public async Task<int> GetStreakAsync(string userId)
         {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            var target = await GetCurrentTargetAsync(userId);
-
-            if (target == null)
-                return 0;
-
-            // Calculate streak - continues across weeks
-            // Pre-fetch all targets for better performance
-            var allTargets = await _context.UserWeeklyTargets
-                .Where(t => t.UserId == userId)
-                .OrderByDescending(t => t.WeekStartDate)
+            var today = TimeZoneHelper.GetTodayInCairo();
+            var sessionDates = await _context.StudySessions
+                .Where(s => s.UserId == userId)
+                .Select(s => s.Date)
+                .Distinct()
                 .ToListAsync();
-            
+            var sessionDateSet = new HashSet<DateOnly>(sessionDates);
             var streakDays = 0;
-            var checkDate = today;
-            var maxDaysBack = 365; // Limit to 1 year to prevent infinite loops
-            
-            while (streakDays < maxDaysBack)
+            var startDate = sessionDateSet.Contains(today) ? today : today.AddDays(-1);
+            var checkDate = startDate;
+            while (sessionDateSet.Contains(checkDate))
             {
-                var dayDone = await _context.StudySessions
-                    .Where(s => s.UserId == userId && s.Date == checkDate)
-                    .SumAsync(s => (int?)s.DurationMinutes) ?? 0;
-
-                // Get the target for this day's week (or use current target if no target found)
-                var dayWeekStart = DateHelper.GetWeekStartDate(checkDate);
-                var dayTarget = allTargets.FirstOrDefault(t => t.WeekStartDate == dayWeekStart);
-
-                // Use current target if no target found for that week, or use the found target
-                var requiredMinutes = dayTarget?.DailyTargetMinutes ?? target.DailyTargetMinutes;
-
-                if (dayDone >= requiredMinutes)
-                {
-                    streakDays++;
-                    checkDate = checkDate.AddDays(-1);
-                }
-                else
-                {
-                    break;
-                }
+                streakDays++;
+                checkDate = checkDate.AddDays(-1);
             }
-
             return streakDays;
         }
     }

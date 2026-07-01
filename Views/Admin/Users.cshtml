@@ -15,17 +15,19 @@
 
 <!-- Search Form -->
 <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-    <form method="get" class="flex gap-4">
+    <form method="get" class="flex flex-col md:flex-row gap-3 md:gap-4">
         <input type="text" name="searchTerm" value="@searchTerm" placeholder="Search by name or email..." class="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white px-4 py-2 focus:border-primary focus:ring-primary focus:ring-1" />
-        <button type="submit" class="px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-colors">
-            Search
-        </button>
-        @if (!string.IsNullOrEmpty(searchTerm))
-        {
-            <a asp-action="Users" class="px-6 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg font-medium transition-colors">
-                Clear
-            </a>
-        }
+        <div class="flex gap-3">
+            <button type="submit" class="px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-colors w-full md:w-auto">
+                Search
+            </button>
+            @if (!string.IsNullOrEmpty(searchTerm))
+            {
+                <a asp-action="Users" class="px-6 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg font-medium transition-colors w-full md:w-auto text-center">
+                    Clear
+                </a>
+            }
+        </div>
     </form>
 </div>
 
@@ -64,7 +66,7 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 text-slate-600 dark:text-slate-300">@user.Email</td>
-                        <td class="px-6 py-4 text-slate-600 dark:text-slate-300">@user.CreatedAt.ToString("MMM dd, yyyy")</td>
+                        <td class="px-6 py-4 text-slate-600 dark:text-slate-300">@TimeZoneHelper.ToCairo(user.CreatedAt).ToString("MMM dd, yyyy")</td>
                         <td class="px-6 py-4">
                             <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium @(user.IsSuspended ? "bg-red-50 text-red-700 border border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800" : "bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800")">
                                 @if (!user.IsSuspended)
@@ -75,8 +77,12 @@
                             </span>
                         </td>
                         <td class="px-6 py-4 text-right">
-                            <div class="flex items-center justify-end gap-2">
-                                @if (!user.IsAdmin)
+                            <div class="flex items-center justify-end gap-3 flex-wrap">
+                                @if (user.Id == ViewBag.CurrentUserId as string)
+                                {
+                                    <span class="text-slate-500 dark:text-slate-400 text-sm italic" title="Actions on your own account are disabled for security.">You (cannot modify your own account)</span>
+                                }
+                                else if (!user.IsAdmin)
                                 {
                                     @if (user.IsSuspended)
                                     {
@@ -89,16 +95,30 @@
                                     else
                                     {
                                         <form asp-action="SuspendUser" asp-route-userId="@user.Id" method="post" class="inline">
-                                            <button type="submit" class="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium">
+                                            <button type="submit" class="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 text-sm font-medium">
                                                 Suspend
                                             </button>
                                         </form>
                                     }
-                                    <form asp-action="MakeAdmin" asp-route-userId="@user.Id" method="post" class="inline">
-                                        <button type="submit" class="text-primary hover:text-primary/80 text-sm font-medium">
-                                            Make Admin
-                                        </button>
-                                    </form>
+
+                                    @if (User.IsInRole("SuperAdmin"))
+                                    {
+                                        <form asp-action="MakeAdmin" asp-route-userId="@user.Id" method="post" class="inline">
+                                            <button type="submit" class="inline-flex items-center gap-1 text-primary hover:text-primary/80 text-sm font-medium">
+                                                <span class="material-symbols-outlined text-[16px]">admin_panel_settings</span>
+                                                <span>Make Admin</span>
+                                            </button>
+                                        </form>
+                                        <form asp-action="DeleteUser" asp-route-userId="@user.Id" method="post" class="inline delete-user-form">
+                                            @Html.AntiForgeryToken()
+                                            <button type="button"
+                                                    onclick="confirmDeleteUser(this)"
+                                                    class="inline-flex items-center gap-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium">
+                                                <span class="material-symbols-outlined text-[16px]">lock</span>
+                                                <span>Delete</span>
+                                            </button>
+                                        </form>
+                                    }
                                 }
                             </div>
                         </td>
@@ -108,3 +128,20 @@
         </table>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        async function confirmDeleteUser(button) {
+            const confirmed = await showConfirm(
+                'This will permanently delete this user and all their study sessions and targets. Are you sure?',
+                'Delete User'
+            );
+            if (confirmed) {
+                const form = button.closest('form');
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
+    </script>
+}

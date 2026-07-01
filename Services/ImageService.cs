@@ -82,6 +82,55 @@ namespace StudyTracker.Services
             return $"/images/profiles/{fileName}";
         }
 
+        public async Task<string> UploadBadgeIconAsync(IFormFile file, string badgeId)
+        {
+            if (file == null || file.Length == 0)
+                throw new ArgumentException("File is required", nameof(file));
+
+            if (!await ValidateImageAsync(file))
+                throw new InvalidOperationException("Invalid image file");
+
+            var folder = Path.Combine(_environment.WebRootPath, "images", "badges");
+            if (!Directory.Exists(folder))
+                Directory.CreateDirectory(folder);
+
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var fileName = $"{badgeId}_{Guid.NewGuid()}{ext}";
+            var filePath = Path.Combine(folder, fileName);
+
+            using var memoryStream = new MemoryStream();
+            await file.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            using var image = await Image.LoadAsync(memoryStream);
+            image.Mutate(x => x.Resize(new ResizeOptions
+            {
+                Size = new Size(128, 128),
+                Mode = ResizeMode.Pad
+            }));
+
+            var encoder = new JpegEncoder { Quality = CompressionQuality };
+            await image.SaveAsync(filePath, encoder);
+
+            return $"/images/badges/{Path.GetFileNameWithoutExtension(fileName)}.jpg";
+        }
+
+        public async Task DeleteBadgeIconAsync(string? imageUrl)
+        {
+            if (string.IsNullOrEmpty(imageUrl) || !imageUrl.StartsWith("/images/badges/")) return;
+            try
+            {
+                var fileName = Path.GetFileName(imageUrl);
+                var filePath = Path.Combine(_environment.WebRootPath, "images", "badges", fileName);
+                if (File.Exists(filePath))
+                    await Task.Run(() => File.Delete(filePath));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error deleting badge icon: {ex.Message}");
+            }
+        }
+
         public async Task DeleteProfilePictureAsync(string? imageUrl)
         {
             if (string.IsNullOrEmpty(imageUrl)) return;

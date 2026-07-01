@@ -12,11 +12,13 @@ namespace StudyTracker.Controllers
     public class TargetController : Controller
     {
         private readonly ITargetService _targetService;
+        private readonly IDailyProgressService _dailyProgressService;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public TargetController(ITargetService targetService, UserManager<ApplicationUser> userManager)
+        public TargetController(ITargetService targetService, IDailyProgressService dailyProgressService, UserManager<ApplicationUser> userManager)
         {
             _targetService = targetService;
+            _dailyProgressService = dailyProgressService;
             _userManager = userManager;
         }
 
@@ -27,7 +29,7 @@ namespace StudyTracker.Controllers
                 return RedirectToAction("Login", "Account");
 
             var target = await _targetService.GetCurrentTargetAsync(user.Id);
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var today = TimeZoneHelper.GetTodayInCairo();
             var dailyProgress = await _targetService.CalculateDailyProgressAsync(user.Id, today);
 
             ViewBag.Target = target;
@@ -45,14 +47,16 @@ namespace StudyTracker.Controllers
             if (user == null)
                 return RedirectToAction("Login", "Account");
 
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var today = TimeZoneHelper.GetTodayInCairo();
             var weekStart = DateHelper.GetWeekStartDate(today);
             var existing = await _targetService.GetCurrentTargetAsync(user.Id);
 
+            var totalMinutes = existing?.DailyTargetMinutes ?? 180;
             var model = new WeeklyTargetViewModel
             {
                 WeekStartDate = weekStart,
-                DailyTargetHours = existing != null ? existing.DailyTargetMinutes / 60.0 : 3.0
+                Hours = totalMinutes / 60,
+                Minutes = totalMinutes % 60
             };
 
             ViewBag.UserName = user.FullName;
@@ -89,20 +93,26 @@ namespace StudyTracker.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> WeeklyProgress()
+        public async Task<IActionResult> WeeklyProgress(DateOnly? date)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null)
                 return RedirectToAction("Login", "Account");
 
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            var weekStart = DateHelper.GetWeekStartDate(today);
-            var progress = await _targetService.GetWeeklyProgressAsync(user.Id, weekStart);
+            // Default to Cairo today when no date in query, for consistency with the rest of the app.
+            var selected = date ?? TimeZoneHelper.GetTodayInCairo();
+            var model = await _dailyProgressService.GetDailyProgressAsync(user.Id, selected);
 
-            ViewBag.Progress = progress;
             ViewBag.UserName = user.FullName;
             ViewBag.ProfilePictureUrl = user.ProfilePictureUrl;
-            return View();
+            return View(model);
+        }
+
+        [HttpGet]
+        public Task<IActionResult> DailyProgress(DateOnly? date)
+        {
+            // Kept separate for dashboard navigation, but reuses the same view to fully replace WeeklyProgress.
+            return WeeklyProgress(date);
         }
     }
 }

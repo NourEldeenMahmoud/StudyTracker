@@ -1,0 +1,50 @@
+@{
+    ViewData["Title"] = "Community";
+    Layout = "_UserLayout";
+    var discordUrl = ViewBag.DiscordInviteUrl as string ?? "";
+    var bugReportUrl = ViewBag.BugReportUrl as string ?? "";
+}
+
+<main class="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div>
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Community</h1>
+        <p class="text-slate-500 dark:text-slate-400 mt-1 text-sm sm:text-base">
+            Use the <strong class="text-slate-700 dark:text-slate-300">contact button</strong> (bottom-right) for <strong class="text-slate-700 dark:text-slate-300">Discord</strong> and <strong class="text-slate-700 dark:text-slate-300">Report a bug</strong>.
+        </p>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 sm:p-6 space-y-4">
+        <div class="flex items-start gap-3">
+            <span class="flex items-center justify-center w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 shrink-0">
+                <span class="material-symbols-outlined text-[22px]">bug_report</span>
+            </span>
+            <div class="min-w-0">
+                <h2 class="text-lg font-bold text-slate-900 dark:text-white">Bug reports &amp; Bug Spotter badge</h2>
+                <p class="text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                    Send your report through the link below (or <strong class="text-slate-900 dark:text-white">Report a bug</strong> in the contact menu). The <strong class="text-rose-600 dark:text-rose-400">Bug Spotter</strong> badge is <strong class="text-slate-900 dark:text-white">awarded manually by an admin</strong> after a valid report — it is not granted automatically.
+                </p>
+                @if (!string.IsNullOrEmpty(bugReportUrl))
+                {
+                    <a href="@bugReportUrl" target="_blank" rel="noopener noreferrer"
+                       class="inline-flex items-center gap-2 mt-3 px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-sm font-semibold hover:opacity-90 transition-opacity">
+                        <span class="material-symbols-outlined text-[18px]">open_in_new</span>
+                        Open bug report channel / form
+                    </a>
+                }
+                else
+                {
+                    <p class="text-sm text-amber-700 dark:text-amber-400 mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 px-3 py-2">
+                        Set <code class="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Community:BugReportUrl</code> or <code class="text-xs bg-amber-100 dark:bg-amber-900/40 px-1 rounded">Community:DiscordInviteUrl</code> in appsettings.
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(discordUrl))
+    {
+        <p class="text-sm text-slate-500 dark:text-slate-400">
+            Discord invite is also in the contact menu: <strong class="text-slate-700 dark:text-slate-300">Join our Discord server</strong>.
+        </p>
+    }
+</main>

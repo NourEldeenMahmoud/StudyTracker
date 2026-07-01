@@ -1,0 +1,256 @@
+@{
+    ViewData["Title"] = "Today's Tasks";
+    Layout = "_UserLayout";
+}
+
+<main class="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center gap-3">
+        <a asp-controller="Dashboard" asp-action="Index"
+           class="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+            <span class="material-symbols-outlined text-[20px]">arrow_back</span>
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Today's Tasks</h1>
+            <p class="text-sm text-slate-500 dark:text-slate-400">@DateTime.UtcNow.ToString("dddd, MMM dd")</p>
+        </div>
+        <div class="ml-auto flex items-center gap-2">
+            <span id="todoCount" class="text-xs text-slate-400 dark:text-slate-500 font-medium"></span>
+            <button id="todoClearBtn" onclick="todoClearAll()"
+                    class="hidden items-center gap-1 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-2.5 py-1.5 rounded-lg transition-colors">
+                <span class="material-symbols-outlined text-[15px]">delete_sweep</span>
+                <span>Clear all</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Add Task Card -->
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+        <div class="flex gap-2">
+            <input id="todoInput" type="text" maxlength="500" placeholder="Add a task for today…"
+                   class="flex-1 min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 text-sm px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors" />
+            <button id="todoAddBtn" onclick="todoAdd()"
+                    class="inline-flex items-center justify-center gap-1.5 bg-primary hover:bg-primary/90 text-white text-sm font-medium px-4 py-3 rounded-xl transition-colors shadow-sm shadow-primary/20 shrink-0">
+                <span class="material-symbols-outlined text-[20px]">add</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Task List Card -->
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-4">
+        <ul id="todoList" class="space-y-2"></ul>
+
+        <div id="todoEmpty" class="hidden flex-col items-center justify-center py-10 text-center gap-3">
+            <span class="material-symbols-outlined text-slate-300 dark:text-slate-600 text-[48px]">task_alt</span>
+            <div>
+                <p class="text-sm font-medium text-slate-500 dark:text-slate-400">No tasks yet</p>
+                <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Add your first task above!</p>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<!-- Hidden antiforgery form for AJAX -->
+<form id="todoAntiforgery" style="display:none">@Html.AntiForgeryToken()</form>
+
+@section Scripts {
+<script>
+    function todoGetToken() {
+        const input = document.querySelector('#todoAntiforgery input[name="__RequestVerificationToken"]');
+        return input ? input.value : '';
+    }
+
+    async function todoFetch(url, body) {
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': todoGetToken()
+            },
+            body: JSON.stringify(body)
+        });
+        if (!resp.ok) throw new Error('Request failed');
+        return resp.json();
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function todoRender(items) {
+        const list = document.getElementById('todoList');
+        const empty = document.getElementById('todoEmpty');
+        const count = document.getElementById('todoCount');
+        const clearBtn = document.getElementById('todoClearBtn');
+        list.innerHTML = '';
+
+        if (!items || items.length === 0) {
+            empty.classList.remove('hidden');
+            empty.classList.add('flex');
+            count.textContent = '';
+            clearBtn.classList.remove('inline-flex');
+            clearBtn.classList.add('hidden');
+            return;
+        }
+
+        empty.classList.add('hidden');
+        empty.classList.remove('flex');
+        clearBtn.classList.remove('hidden');
+        clearBtn.classList.add('inline-flex');
+
+        const done = items.filter(i => i.isCompleted).length;
+        count.textContent = done + ' / ' + items.length + ' done';
+
+        items.forEach(item => {
+            const li = document.createElement('li');
+            li.id = 'todo-' + item.id;
+            li.dataset.id = item.id;
+            li.draggable = true;
+            li.className = 'flex items-center gap-3 rounded-xl px-3 py-3 border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 group transition-colors active:bg-slate-100 dark:active:bg-slate-800';
+
+            const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+            let ageLabel = '';
+            if (createdAt) {
+                const today = new Date();
+                const createdDay = new Date(createdAt.getFullYear(), createdAt.getMonth(), createdAt.getDate());
+                const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                const diffMs = todayDay - createdDay;
+                const diffDays = Math.floor(diffMs / 86400000);
+                if (diffDays <= 0) ageLabel = 'Today';
+                else if (diffDays === 1) ageLabel = 'Yesterday';
+                else ageLabel = diffDays + ' days ago';
+            }
+
+            const isOverdue = item.date
+                ? (new Date(item.date) < new Date(new Date().toISOString().substring(0, 10)) && !item.isCompleted)
+                : false;
+
+            li.innerHTML = `
+                <button onclick="todoToggle('${item.id}')"
+                        class="shrink-0 w-6 h-6 rounded border-2 flex items-center justify-center transition-colors
+                               ${item.isCompleted
+                                   ? 'border-primary bg-primary text-white'
+                                   : 'border-slate-300 dark:border-slate-600'}">
+                    ${item.isCompleted ? '<span class="material-symbols-outlined text-[15px]">check</span>' : ''}
+                </button>
+                <div class="flex-1 min-w-0">
+                    <span class="block text-sm leading-snug ${item.isCompleted ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'} truncate">${escapeHtml(item.title)}</span>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        ${ageLabel ? `<span class="text-[11px] text-slate-400 dark:text-slate-500">${ageLabel}</span>` : ''}
+                        ${isOverdue ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-[10px] font-semibold text-red-600 dark:text-red-400">
+                            <span class="material-symbols-outlined text-[12px]">warning</span>
+                            <span>Overdue</span>
+                        </span>` : ''}
+                    </div>
+                </div>
+                <button onclick="todoDelete('${item.id}')"
+                        class="shrink-0 text-slate-300 dark:text-slate-600 hover:text-red-500 active:text-red-500 transition-colors p-1 opacity-0 group-hover:opacity-100">
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                </button>
+                <span class="material-symbols-outlined text-[16px] text-slate-300 dark:text-slate-600 cursor-grab select-none drag-handle opacity-0 group-hover:opacity-100">drag_indicator</span>
+            `;
+            list.appendChild(li);
+        });
+
+        enableTodoDrag(list);
+    }
+
+    async function todoLoad() {
+        try {
+            const items = await fetch('/Todo/Today').then(r => r.json());
+            todoRender(items);
+        } catch (e) { console.error('Todo load error', e); }
+    }
+
+    async function todoAdd() {
+        const input = document.getElementById('todoInput');
+        const title = input.value.trim();
+        if (!title) { input.focus(); return; }
+
+        const btn = document.getElementById('todoAddBtn');
+        btn.disabled = true;
+
+        try {
+            await todoFetch('/Todo/Add', { title });
+            input.value = '';
+            input.focus();
+            await todoLoad();
+        } catch (e) {
+            showNotification('Could not add task. Please try again.', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function todoToggle(id) {
+        try {
+            await todoFetch('/Todo/Toggle', { id });
+            await todoLoad();
+        } catch (e) {
+            showNotification('Could not update task.', 'error');
+        }
+    }
+
+    async function todoClearAll() {
+        const confirmed = await showConfirm('This will permanently delete all of your tasks. This cannot be undone.', 'Clear all tasks?');
+        if (!confirmed) return;
+        try {
+            await todoFetch('/Todo/ClearAll', {});
+            await todoLoad();
+        } catch (e) {
+            showNotification('Could not clear tasks. Please try again.', 'error');
+        }
+    }
+
+    async function todoDelete(id) {
+        try {
+            await todoFetch('/Todo/Delete', { id });
+            const li = document.getElementById('todo-' + id);
+            if (li) li.remove();
+            await todoLoad();
+        } catch (e) {
+            showNotification('Could not delete task.', 'error');
+        }
+    }
+
+    function enableTodoDrag(list) {
+        let dragged = null;
+
+        list.querySelectorAll('li').forEach(li => {
+            li.addEventListener('dragstart', e => {
+                dragged = li;
+                li.classList.add('opacity-50');
+            });
+            li.addEventListener('dragend', () => {
+                if (dragged) dragged.classList.remove('opacity-50');
+                const order = Array.from(list.querySelectorAll('li')).map(x => x.dataset.id);
+                dragged = null;
+                if (order.length) {
+                    todoFetch('/Todo/Reorder', { order }).catch(() => {
+                        console.error('Failed to persist todo order');
+                    });
+                }
+            });
+            li.addEventListener('dragover', e => {
+                e.preventDefault();
+                if (!dragged || dragged === li) return;
+                const rect = li.getBoundingClientRect();
+                const before = (e.clientY - rect.top) < (rect.height / 2);
+                if (before) {
+                    list.insertBefore(dragged, li);
+                } else {
+                    list.insertBefore(dragged, li.nextSibling);
+                }
+            });
+        });
+    }
+
+    document.getElementById('todoInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); todoAdd(); }
+    });
+
+    todoLoad();
+</script>
+}

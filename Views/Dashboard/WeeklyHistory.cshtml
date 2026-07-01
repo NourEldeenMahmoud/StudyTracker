@@ -1,0 +1,56 @@
+@model List<StudyTracker.Models.WeeklyLeaderboardArchive>
+@{
+    ViewData["Title"] = "Weekly Leaderboards History";
+    Layout = "_UserLayout";
+    var page = ViewBag.Page as int? ?? 1;
+}
+
+<main class="flex-1 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <header class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Weekly Leaderboards History</h1>
+            <p class="text-slate-500 dark:text-slate-400 mt-1 text-sm">Browse past weeks and see how each leaderboard finished.</p>
+        </div>
+        <a asp-controller="Dashboard" asp-action="Index"
+           class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+            <span>Back to Dashboard</span>
+        </a>
+    </header>
+
+    @if (!Model.Any())
+    {
+        <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-10 text-center">
+            <p class="text-sm text-slate-500 dark:text-slate-400">No archived leaderboards yet. Once a week completes, it will appear here.</p>
+        </section>
+    }
+    else
+    {
+        <section class="space-y-4">
+            @foreach (var archive in Model)
+            {
+                var weekNumber = System.Globalization.CultureInfo.InvariantCulture.Calendar
+                    .GetWeekOfYear(archive.WeekStartDate.ToDateTime(TimeOnly.MinValue),
+                                   System.Globalization.CalendarWeekRule.FirstFourDayWeek,
+                                   DayOfWeek.Saturday);
+                var label = $"Week {weekNumber:00}, {archive.WeekStartDate.Year} – {archive.WeekStartDate:MMM dd}–{archive.WeekEndDate:MMM dd}";
+                <details class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm group">
+                    <summary class="flex items-center justify-between gap-3 px-5 py-4 cursor-pointer select-none">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-[20px] text-amber-500 group-open:rotate-90 transition-transform">trophy</span>
+                            <div>
+                                <p class="text-sm font-semibold text-slate-900 dark:text-white">@label</p>
+                                <p class="text-[11px] text-slate-400 dark:text-slate-500">Archived @TimeZoneHelper.ToCairo(archive.CreatedAtUtc).ToString("MMM dd, yyyy HH:mm")</p>
+                            </div>
+                        </div>
+                        <span class="material-symbols-outlined text-[18px] text-slate-400 group-open:rotate-180 transition-transform">expand_more</span>
+                    </summary>
+                    <div class="px-5 pb-4">
+                        @await Html.PartialAsync("_WeeklyArchiveTable", archive)
+                    </div>
+                </details>
+            }
+        </section>
+    }
+</main>
+

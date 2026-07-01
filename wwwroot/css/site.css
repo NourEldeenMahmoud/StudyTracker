@@ -20,3 +20,49 @@ html {
 body {
   margin-bottom: 60px;
 }
+
+/* ── Mobile-first responsive utilities ────────────────────────── */
+
+/* Hide native scrollbar on admin pill nav */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Prevent horizontal page overflow */
+body {
+  overflow-x: hidden;
+}
+
+/* Safe-area bottom padding for FABs on devices with home bar */
+.fab-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Text line-clamping (used by sessions notes, badge descriptions) */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Touch target minimum size (WCAG 2.5.5) */
+@media (max-width: 639px) {
+  button, [role="button"], a.btn {
+    min-height: 44px;
+  }
+
+  /* Tighten space-y on mobile for stacked sections */
+  .space-y-8 {
+    row-gap: 1.25rem;
+  }
+}
+
+/* Smooth tap highlight removal for interactive elements */
+a, button {
+  -webkit-tap-highlight-color: transparent;
+}

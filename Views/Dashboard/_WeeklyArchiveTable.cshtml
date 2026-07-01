@@ -1,0 +1,65 @@
+@model StudyTracker.Models.WeeklyLeaderboardArchive
+@using StudyTracker.Models.ViewModels
+@inject StudyTracker.Services.IWeeklyLeaderboardArchiveService ArchiveService
+
+@{
+    var entries = await ArchiveService.GetEntriesForArchiveAsync(Model);
+}
+
+@if (!entries.Any())
+{
+    <p class="text-sm text-slate-500 dark:text-slate-400 py-4">No data recorded for this week.</p>
+}
+else
+{
+    <div class="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-xl">
+        <table class="w-full text-left border-collapse text-sm">
+            <thead>
+                <tr class="bg-slate-50 dark:bg-slate-800/60 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    <th class="px-4 py-3">Rank</th>
+                    <th class="px-4 py-3">Student</th>
+                    <th class="px-4 py-3 text-right">Hours</th>
+                    <th class="px-4 py-3 text-right">Sessions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                @foreach (var e in entries)
+                {
+                    var entryHours = (int)e.TotalHours;
+                    var entryMins = (int)((e.TotalHours - entryHours) * 60);
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                        <td class="px-4 py-3">
+                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full @(e.Rank == 1 ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" : e.Rank == 2 ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" : e.Rank == 3 ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300") text-xs font-bold">
+                                @e.Rank
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                                    @if (!string.IsNullOrEmpty(e.ProfilePictureUrl))
+                                    {
+                                        <img src="@e.ProfilePictureUrl" alt="@e.FullName" class="w-full h-full object-cover" />
+                                    }
+                                    else
+                                    {
+                                        <div class="w-full h-full flex items-center justify-center text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                            @e.FullName.Substring(0, 1).ToUpper()
+                                        </div>
+                                    }
+                                </div>
+                                <span class="text-sm font-medium text-slate-900 dark:text-white">@e.FullName</span>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <span class="font-semibold text-slate-900 dark:text-white">@entryHours h @entryMins m</span>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <span class="text-slate-700 dark:text-slate-200">@e.SessionsCount</span>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+

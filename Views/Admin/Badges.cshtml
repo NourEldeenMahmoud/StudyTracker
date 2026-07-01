@@ -1,0 +1,1058 @@
+@using StudyTracker.Services
+@using StudyTracker.Models
+@using StudyTracker.Helpers
+@functions {
+    IHtmlContent BadgeIcon(string icon, string sizeClass) {
+        if ((icon ?? "").StartsWith("/") || (icon ?? "").StartsWith("http"))
+            return new Microsoft.AspNetCore.Html.HtmlString($"<img src=\"{System.Net.WebUtility.HtmlEncode(icon)}\" class=\"inline-block w-6 h-6 object-cover rounded-full align-middle\" />");
+        bool isMaterial = BadgeIconHelper.IsMaterialSymbolName(icon);
+        string html = isMaterial
+            ? $"<span class=\"material-symbols-outlined {sizeClass}\">{System.Net.WebUtility.HtmlEncode(icon)}</span>"
+            : $"<span class=\"{sizeClass} leading-none\">{System.Net.WebUtility.HtmlEncode(icon)}</span>";
+        return new Microsoft.AspNetCore.Html.HtmlString(html);
+    }
+}
+@{
+    ViewData["Title"] = "Badges Management";
+    Layout = "_AdminLayout";
+    var summaries   = ViewBag.Summaries   as List<UserBadgeSummary>          ?? new();
+    var definitions = ViewBag.Definitions as IReadOnlyList<BadgeDefinition>  ?? Array.Empty<BadgeDefinition>();
+    var customDefs  = ViewBag.CustomDefs  as List<CustomBadgeDefinition>     ?? new();
+
+    // Helper: resolve any badge key (system includes tier + category for colors)
+    (string Name, string Icon, string Color, bool IsCustom, string Description, int? TierLevel, string? CategoryId) ResolveBadge(string key)
+    {
+        var predef = definitions.FirstOrDefault(d => d.Key == key);
+        if (predef is not null)
+        {
+            var cat = string.IsNullOrEmpty(predef.CategoryId) ? null : predef.CategoryId;
+            var fill = predef.TierLevel > 0 && cat != null
+                ? BadgeTierUi.IconBadgeSurfaceClasses(predef.TierLevel, cat)
+                : predef.Color;
+            return (predef.Name, predef.Icon, fill, false, predef.Description,
+                predef.TierLevel > 0 ? predef.TierLevel : null,
+                cat);
+        }
+        if (Guid.TryParse(key, out var gid))
+        {
+            var cd = customDefs.FirstOrDefault(d => d.Id == gid);
+            if (cd is not null) return (cd.Name, cd.Icon, cd.Color, true, cd.Description, null, null);
+        }
+        return (key, "military_tech", "text-slate-500 bg-slate-100 dark:bg-slate-800", false, "", null, null);
+    }
+}
+
+<!-- Header -->
+<header class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">Badges Management</h1>
+        <p class="text-slate-500 dark:text-slate-400 text-sm mt-1">Create custom badges and assign any badge to students.</p>
+    </div>
+    <div class="flex gap-2">
+        @if (User.IsInRole("SuperAdmin"))
+        {
+            <button onclick="document.getElementById('createCustomModal').classList.remove('hidden')"
+                    class="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-colors">
+                <span class="material-symbols-outlined text-[18px]">add_circle</span>
+                New Custom Badge
+            </button>
+        }
+        <button onclick="document.getElementById('assignModal').classList.remove('hidden')"
+                class="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors">
+            <span class="material-symbols-outlined text-[18px]">emoji_events</span>
+            Assign Badge
+        </button>
+    </div>
+</header>
+
+<!-- Stats Row -->
+@{
+    var totalEarned    = summaries.Sum(s => s.Badges.Count);
+    var usersWithBadge = summaries.Count(s => s.Badges.Any());
+    var mostEarnedKey  = summaries.SelectMany(s => s.Badges).GroupBy(b => b.BadgeKey).OrderByDescending(g => g.Count()).FirstOrDefault()?.Key;
+    var meName = "—";
+    if (mostEarnedKey is not null)
+    {
+        var resolved = ResolveBadge(mostEarnedKey);
+        meName = resolved.Name;
+    }
+}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-5">
+        <p class="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Total Badges Earned</p>
+        <p class="text-2xl font-bold text-slate-900 dark:text-white">@totalEarned</p>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-5">
+        <p class="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Students with Badges</p>
+        <p class="text-2xl font-bold text-slate-900 dark:text-white">@usersWithBadge</p>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-5">
+        <p class="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Custom Badges</p>
+        <p class="text-2xl font-bold text-slate-900 dark:text-white">@customDefs.Count</p>
+    </div>
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-5">
+        <p class="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Most Earned</p>
+        <p class="text-sm font-bold text-slate-900 dark:text-white truncate">@meName</p>
+    </div>
+</div>
+
+<!-- ── Custom Badges Section ─────────────────────────────────────────── -->
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-emerald-500 text-[20px]">workspace_premium</span>
+            <h2 class="text-base font-bold text-slate-900 dark:text-white">Custom Badges</h2>
+            <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[14px]">lock</span>
+                    Super Admin only (edit/delete)
+                </span>
+        </div>
+            @if (User.IsInRole("SuperAdmin"))
+            {
+                <button onclick="document.getElementById('createCustomModal').classList.remove('hidden')"
+                        class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[14px]">add</span>
+                    Create new
+                </button>
+            }
+    </div>
+
+    @if (!customDefs.Any())
+    {
+        <div class="flex flex-col items-center justify-center py-12 text-slate-400">
+            <span class="material-symbols-outlined text-[40px] mb-2">workspace_premium</span>
+            <p class="text-sm">No custom badges yet. Create your first one!</p>
+        </div>
+    }
+    else
+    {
+        <div class="divide-y divide-slate-100 dark:divide-slate-800">
+            @foreach (var cd in customDefs)
+            {
+                var earnedCount = summaries.Count(s => s.Badges.Any(b => b.BadgeKey == cd.Id.ToString()));
+                <div class="px-6 py-4 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <div class="w-10 h-10 rounded-full @cd.Color flex items-center justify-center shrink-0">
+                        @Html.Raw(BadgeIcon(cd.Icon, "text-[20px]"))
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <p class="text-sm font-semibold text-slate-900 dark:text-white">@cd.Name</p>
+                            <span class="text-xs px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-medium">Custom</span>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 truncate">@cd.Description</p>
+                        @if (!string.IsNullOrEmpty(cd.AdminNote))
+                        {
+                            <p class="text-xs text-amber-600 dark:text-amber-400 mt-0.5 truncate">
+                                <span class="material-symbols-outlined text-[12px] align-text-bottom">lock</span>
+                                @cd.AdminNote
+                            </p>
+                        }
+                    </div>
+                    <span class="text-xs font-bold px-2 py-1 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 shrink-0">
+                        @earnedCount earned
+                    </span>
+                    <div class="flex items-center gap-2 shrink-0">
+                        @if (User.IsInRole("SuperAdmin"))
+                        {
+                            <button type="button"
+                                    class="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                    data-id="@cd.Id"
+                                    data-name="@cd.Name"
+                                    data-description="@cd.Description"
+                                    data-icon="@cd.Icon"
+                                    data-color="@cd.Color"
+                                    data-adminnote="@cd.AdminNote"
+                                    onclick="openEditCustom(this)">
+                                <span class="material-symbols-outlined text-[14px]">edit</span>
+                                <span>Edit</span>
+                            </button>
+                        }
+                        <button onclick="openAssignCustom('@cd.Id', '@cd.Name')"
+                                class="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors">
+                            <span class="material-symbols-outlined text-[14px]">person_add</span>
+                            <span>Assign</span>
+                        </button>
+                        @if (User.IsInRole("SuperAdmin"))
+                        {
+                            <form asp-action="DeleteCustomBadge" method="post" onsubmit="return confirm('Delete this badge and revoke it from all users?')">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@cd.Id" />
+                                <button type="submit"
+                                        class="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                                    <span class="material-symbols-outlined text-[14px]">lock</span>
+                                    <span>Delete</span>
+                                </button>
+                            </form>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+<!-- ── Predefined Badges Overview (grouped by tier track) ─────────────── -->
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+    <div class="flex flex-col gap-1 mb-4">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+            <h2 class="text-base font-bold text-slate-900 dark:text-white">System Badges</h2>
+            <span class="text-xs text-slate-500 dark:text-slate-400">Edit display only (name, description, icon, colour)</span>
+        </div>
+        <p class="text-xs text-amber-700 dark:text-amber-400/90 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2 border border-amber-100 dark:border-amber-900/40">
+            Tier levels and unlock thresholds are defined in application code. To change them, deploy a new release.
+        </p>
+    </div>
+    @{
+        int GroupOrder(string k) => k switch { "Hours" => 0, "Streak" => 1, "Ranking" => 2, _ => 99 };
+        var tieredByGroup = definitions
+            .Where(d => !string.IsNullOrEmpty(d.CategoryId))
+            .GroupBy(d => d.DisplayGroupKey)
+            .OrderBy(g => GroupOrder(g.Key))
+            .ToList();
+    }
+    @foreach (var grp in tieredByGroup)
+    {
+        <div class="mb-6 last:mb-0">
+            <h3 class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-[18px]">layers</span>
+                @grp.Key
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                @foreach (var def in grp.OrderBy(d => d.CategoryId).ThenBy(d => d.TierLevel))
+                {
+                    var earnedCount = summaries.Count(s => s.Badges.Any(b => b.BadgeKey == def.Key));
+                    var sub = string.IsNullOrEmpty(def.DisplaySubgroup) ? "" : $" · {def.DisplaySubgroup}";
+                    <div class="flex items-center gap-3 p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 group">
+                        <div class="flex items-center gap-2 shrink-0" dir="ltr">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center @(string.IsNullOrEmpty(def.CategoryId) || def.TierLevel <= 0 ? def.Color : BadgeTierUi.IconBadgeSurfaceClasses(def.TierLevel, def.CategoryId)) @BadgeTierUi.IconRingClasses(def.TierLevel, def.CategoryId)">
+                                @Html.Raw(BadgeIcon(def.Icon, "text-[20px]"))
+                            </div>
+                            @if (def.TierLevel > 0)
+                            {
+                                <div class="flex flex-col items-center gap-0.5">
+                                    <span class="min-w-[1.25rem] px-1 py-0.5 rounded-md text-center text-[9px] font-mono font-black @BadgeTierUi.TierPillClasses(def.TierLevel, def.CategoryId)" title="Tier @BadgeTierUi.ToRoman(def.TierLevel)">@BadgeTierUi.ToRoman(def.TierLevel)</span>
+                                    <span class="text-[8px] font-mono font-bold rounded px-1 py-0.5 @BadgeTierUi.LvBadgeClasses(def.TierLevel, def.CategoryId)">LV @def.TierLevel</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <p class="text-sm font-semibold text-slate-900 dark:text-white truncate">@def.Name</p>
+                            </div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 truncate">@def.Description@sub</p>
+                            <p class="text-[10px] text-slate-400 font-mono mt-0.5">@def.Key</p>
+                        </div>
+                        <span class="text-xs font-bold px-2 py-1 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 shrink-0">@earnedCount</span>
+                        <button type="button"
+                                class="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                data-key="@def.Key"
+                                data-name="@def.Name"
+                                data-description="@def.Description"
+                                data-icon="@def.Icon"
+                                data-color="@def.Color"
+                                onclick="openEditSystemBadge(this)">
+                            <span class="material-symbols-outlined text-[14px]">edit</span>
+                            Edit
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</section>
+
+<!-- ── Students Table ─────────────────────────────────────────────────── -->
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <h2 class="text-base font-bold text-slate-900 dark:text-white">Students & Their Badges</h2>
+        <span class="text-xs text-slate-400">@summaries.Count students</span>
+    </div>
+
+    @if (!summaries.Any())
+    {
+        <div class="flex flex-col items-center justify-center py-16 text-slate-400">
+            <span class="material-symbols-outlined text-[48px] mb-3">military_tech</span>
+            <p>No students found.</p>
+        </div>
+    }
+    else
+    {
+        <div class="divide-y divide-slate-100 dark:divide-slate-800">
+            @foreach (var summary in summaries)
+            {
+                <div class="px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <div class="flex flex-col md:flex-row md:items-center gap-3">
+                        <div class="flex items-center gap-3 min-w-0 md:w-56 shrink-0">
+                            <div class="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                <span class="material-symbols-outlined text-primary text-[18px]">person</span>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-slate-900 dark:text-white truncate">@summary.FullName</p>
+                                <p class="text-xs text-slate-400 truncate">@summary.Email</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-1.5 flex-1">
+                            @if (!summary.Badges.Any())
+                            {
+                                <span class="text-xs text-slate-400 italic">No badges yet</span>
+                            }
+                            else
+                            {
+                                @foreach (var badge in summary.Badges)
+                                {
+                                    var (bName, bIcon, bColor, bIsCustom, bDesc, bTier, bCat) = ResolveBadge(badge.BadgeKey);
+                                    var fullDesc = string.IsNullOrWhiteSpace(bDesc)
+                                        ? $"Earned {badge.EarnedAt.ToLocalTime():MMM d, yyyy}"
+                                        : $"{bDesc} — Earned {badge.EarnedAt.ToLocalTime():MMM d, yyyy}";
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium @bColor"
+                                          dir="ltr"
+                                          data-badge-name="@bName"
+                                          data-badge-description="@fullDesc"
+                                          data-badge-icon="@bIcon"
+                                          onmouseenter="showBadgeHoverTooltip(this)"
+                                          onmouseleave="hideBadgeHoverTooltip()">
+                                        @Html.Raw(BadgeIcon(bIcon, "text-[13px]"))
+                                        @bName
+                                        @if (bTier is int bt)
+                                        {
+                                            <span class="font-mono text-[9px] font-black leading-none px-1 py-0.5 rounded @BadgeTierUi.TierPillClasses(bt, bCat)" title="Tier @BadgeTierUi.ToRoman(bt)">@BadgeTierUi.ToRoman(bt)</span>
+                                        }
+                                        @if (bIsCustom)
+                                        {
+                                            <span class="material-symbols-outlined text-[10px] opacity-60">workspace_premium</span>
+                                        }
+                                    </span>
+                                }
+                            }
+                        </div>
+
+                        <div class="flex items-center gap-2 shrink-0 ml-auto">
+                            <button onclick="openAssign('@summary.UserId', '@summary.FullName')"
+                                    class="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors">
+                                <span class="material-symbols-outlined text-[14px]">add</span>
+                                Assign
+                            </button>
+                            @if (summary.Badges.Any())
+                            {
+                                <button onclick="openRevoke('@summary.UserId', '@summary.FullName')"
+                                        class="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                                    <span class="material-symbols-outlined text-[14px]">remove_circle</span>
+                                    Revoke
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</section>
+
+<!-- ══════════════════════ MODALS ══════════════════════ -->
+
+<!-- Create Custom Badge Modal -->
+<div id="createCustomModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div class="px-6 pt-6 pb-2 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-emerald-500">workspace_premium</span>
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">Create Custom Badge</h3>
+            </div>
+            <button onclick="document.getElementById('createCustomModal').classList.add('hidden')"
+                    class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-slate-400 text-[18px]">close</span>
+            </button>
+        </div>
+
+        <form asp-action="CreateCustomBadge" method="post" enctype="multipart/form-data" class="px-6 pb-6 pt-4 flex flex-col gap-4">
+            @Html.AntiForgeryToken()
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Badge Name <span class="text-red-500">*</span></label>
+                <input type="text" name="name" placeholder="e.g. Class Hero" maxlength="100" required
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                <input type="text" name="description" placeholder="What did the student do to earn this?" maxlength="255"
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <!-- Icon Type Toggle -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Icon</label>
+                <div class="flex gap-2 mb-3">
+                    <button type="button" id="iconTypeSymbol"
+                            onclick="setIconType('symbol')"
+                            class="flex-1 py-2 rounded-xl border-2 border-primary bg-primary/10 text-primary text-sm font-semibold transition-colors">
+                        Symbol
+                    </button>
+                    <button type="button" id="iconTypeEmoji"
+                            onclick="setIconType('emoji')"
+                            class="flex-1 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-sm font-semibold transition-colors hover:border-primary hover:text-primary">
+                        Emoji
+                    </button>
+                    <button type="button" id="iconTypeUpload"
+                            onclick="setIconType('upload')"
+                            class="flex-1 py-2 rounded-xl border-2 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-sm font-semibold transition-colors hover:border-primary hover:text-primary">
+                        Upload
+                    </button>
+                </div>
+
+                <!-- Material Symbol picker -->
+                <div id="symbolPicker">
+                    <div class="flex gap-2">
+                        <input type="text" name="icon" id="customIconInput" value="star" placeholder="e.g. star, cake, bolt"
+                               class="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary"
+                               oninput="syncIconPreview(this.value)" />
+                        <div class="w-11 h-11 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-800">
+                            <span id="iconPreview" class="material-symbols-outlined text-slate-600 dark:text-slate-300 text-[22px]">star</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                        @foreach (var ic in new[]{"star","bolt","crown","cake","rocket_launch","verified","auto_awesome","local_fire_department","sports_score","thumb_up","eco","diamond","favorite","shield","emoji_events","workspace_premium","military_tech","school","psychology","menu_book","fitness_center","wb_sunny","nightlight","grade"})
+                        {
+                            <button type="button" title="@ic"
+                                    onclick="setSymbol('@ic')"
+                                    class="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-primary transition-colors">
+                                <span class="material-symbols-outlined text-[18px] text-slate-600 dark:text-slate-300">@ic</span>
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <!-- Emoji picker -->
+                <div id="emojiPicker" class="hidden">
+                    <div class="flex gap-2">
+                        <input type="text" id="emojiInput" placeholder="Paste or type an emoji e.g. 🏆"
+                               class="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary text-xl"
+                               oninput="setEmoji(this.value)" />
+                        <div class="w-11 h-11 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center bg-slate-50 dark:bg-slate-800">
+                            <span id="emojiPreview" class="text-[22px] leading-none">⭐</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        @foreach (var em in new[]{"🏆","⭐","🥇","🎯","🔥","💎","🚀","✅","🎓","📚","💪","🌟","👑","🎖️","🏅","❤️","🦁","⚡","🌈","🍀"})
+                        {
+                            <button type="button"
+                                    onclick="setEmoji('@em')"
+                                    class="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 hover:border-primary transition-colors text-xl">
+                                @em
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <!-- Image upload picker -->
+                <div id="uploadPicker" class="hidden">
+                    <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl cursor-pointer hover:border-primary transition-colors bg-slate-50 dark:bg-slate-800/50"
+                           id="uploadDropZone">
+                        <span class="material-symbols-outlined text-slate-400 text-[36px]">upload_file</span>
+                        <span class="text-sm text-slate-500 dark:text-slate-400 mt-1">Click or drag image here</span>
+                        <span class="text-xs text-slate-400 mt-0.5">JPG, PNG, GIF — max 5 MB</span>
+                        <input type="file" name="iconFile" id="iconFileInput" accept="image/*" class="sr-only"
+                               onchange="previewUploadedIcon(this)" />
+                    </label>
+                    <div id="uploadPreviewWrap" class="hidden flex items-center gap-3 mt-3">
+                        <img id="uploadPreview" src="" alt="preview" class="w-14 h-14 rounded-xl object-cover border border-slate-200 dark:border-slate-700" />
+                        <div class="flex-1">
+                            <p id="uploadFileName" class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate"></p>
+                            <button type="button" onclick="clearUpload()"
+                                    class="text-xs text-red-500 hover:underline mt-0.5">Remove</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Colour</label>
+                <div class="grid grid-cols-5 gap-2" id="colorPicker">
+                    @{
+                        var colorOptions = new[]
+                        {
+                            ("text-yellow-500 bg-yellow-100 dark:bg-yellow-900/30",  "bg-yellow-400",  "Gold"),
+                            ("text-blue-500 bg-blue-100 dark:bg-blue-900/30",        "bg-blue-400",    "Blue"),
+                            ("text-emerald-500 bg-emerald-100 dark:bg-emerald-900/30","bg-emerald-400","Green"),
+                            ("text-red-500 bg-red-100 dark:bg-red-900/30",           "bg-red-400",     "Red"),
+                            ("text-purple-500 bg-purple-100 dark:bg-purple-900/30",  "bg-purple-400",  "Purple"),
+                            ("text-pink-500 bg-pink-100 dark:bg-pink-900/30",        "bg-pink-400",    "Pink"),
+                            ("text-orange-500 bg-orange-100 dark:bg-orange-900/30",  "bg-orange-400",  "Orange"),
+                            ("text-cyan-500 bg-cyan-100 dark:bg-cyan-900/30",        "bg-cyan-400",    "Cyan"),
+                            ("text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30",  "bg-indigo-400",  "Indigo"),
+                            ("text-slate-600 bg-slate-200 dark:bg-slate-700",        "bg-slate-400",   "Grey"),
+                        };
+                        var firstColor = colorOptions[0].Item1;
+                    }
+                    @foreach (var (val, dot, label) in colorOptions)
+                    {
+                        <label class="cursor-pointer" title="@label">
+                            <input type="radio" name="color" value="@val" class="sr-only color-radio" @(val == firstColor ? "checked" : "") />
+                            <div class="w-full aspect-square rounded-xl @dot flex items-center justify-center border-2 border-transparent color-swatch hover:scale-110 transition-transform @(val == firstColor ? "ring-2 ring-offset-1 ring-slate-400" : "")">
+                                @if (val == firstColor)
+                                {
+                                    <span class="material-symbols-outlined text-white text-[16px]">check</span>
+                                }
+                            </div>
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Admin Note <span class="text-slate-400 text-xs">(private, not shown to users)</span></label>
+                <input type="text" name="adminNote" placeholder="Why was this badge created?" maxlength="500"
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('createCustomModal').classList.add('hidden')"
+                        class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors">
+                    Create Badge
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Custom Badge Modal -->
+<div id="editCustomModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div class="px-6 pt-6 pb-2 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-emerald-500">workspace_premium</span>
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">Edit Custom Badge</h3>
+            </div>
+            <button type="button" onclick="document.getElementById('editCustomModal').classList.add('hidden')"
+                    class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-slate-400 text-[18px]">close</span>
+            </button>
+        </div>
+
+        <form asp-action="EditCustomBadge" method="post" enctype="multipart/form-data" class="px-6 pb-6 pt-4 flex flex-col gap-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" id="editBadgeId" />
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Badge Name <span class="text-red-500">*</span></label>
+                <input type="text" name="name" id="editBadgeName" maxlength="100" required
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                <input type="text" name="description" id="editBadgeDescription" maxlength="255"
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Icon (symbol name / emoji / image URL)</label>
+                <input type="text" name="icon" id="editBadgeIcon"
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+                <p class="text-[11px] text-slate-400 mt-1">Leave empty to keep the existing icon, or paste a new Material Symbol name, emoji, or uploaded image URL.</p>
+                <div class="mt-2">
+                    <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Or upload new image</label>
+                    <input type="file" name="iconFile" id="editIconFile" accept="image/*"
+                           class="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Colour</label>
+                <select name="color" id="editBadgeColor"
+                        class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary">
+                    @{
+                        var editColorOptions = new[]
+                        {
+                            ("text-yellow-500 bg-yellow-100 dark:bg-yellow-900/30",  "Gold"),
+                            ("text-blue-500 bg-blue-100 dark:bg-blue-900/30",        "Blue"),
+                            ("text-emerald-500 bg-emerald-100 dark:bg-emerald-900/30","Green"),
+                            ("text-red-500 bg-red-100 dark:bg-red-900/30",           "Red"),
+                            ("text-purple-500 bg-purple-100 dark:bg-purple-900/30",  "Purple"),
+                            ("text-pink-500 bg-pink-100 dark:bg-pink-900/30",        "Pink"),
+                            ("text-orange-500 bg-orange-100 dark:bg-orange-900/30",  "Orange"),
+                            ("text-cyan-500 bg-cyan-100 dark:bg-cyan-900/30",        "Cyan"),
+                            ("text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30",  "Indigo"),
+                            ("text-slate-600 bg-slate-200 dark:bg-slate-700",        "Grey"),
+                        };
+                    }
+                    @foreach (var (val, label) in editColorOptions)
+                    {
+                        <option value="@val">@label</option>
+                    }
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Admin Note <span class="text-slate-400 text-xs">(private, not shown to users)</span></label>
+                <input type="text" name="adminNote" id="editBadgeAdminNote" maxlength="500"
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('editCustomModal').classList.add('hidden')"
+                        class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit System Badge Modal -->
+<div id="editSystemBadgeModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div class="px-6 pt-6 pb-2 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">edit</span>
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">Edit System Badge</h3>
+            </div>
+            <button type="button" onclick="document.getElementById('editSystemBadgeModal').classList.add('hidden')"
+                    class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-slate-400 text-[18px]">close</span>
+            </button>
+        </div>
+
+        <form asp-action="UpdateSystemBadge" method="post" class="px-6 pb-6 pt-4 flex flex-col gap-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="badgeKey" id="editSystemBadgeKey" />
+
+            <div>
+                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">Badge key (fixed)</label>
+                <p id="editSystemBadgeKeyDisplay" class="text-sm font-mono text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 rounded-lg px-3 py-2"></p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Name <span class="text-red-500">*</span></label>
+                <input type="text" name="name" id="editSystemBadgeName" maxlength="100" required
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                <input type="text" name="description" id="editSystemBadgeDescription" maxlength="255"
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Icon</label>
+                <input type="text" name="icon" id="editSystemBadgeIcon" maxlength="500" placeholder="e.g. emoji_events, timer"
+                       class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary" />
+                <p class="text-[11px] text-slate-400 mt-1">Material Symbol name, or emoji</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Colour (Tailwind classes)</label>
+                <select name="color" id="editSystemBadgeColor"
+                        class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary">
+                    @{
+                        var systemColorOptions = new[]
+                        {
+                            ("text-yellow-500 bg-yellow-100 dark:bg-yellow-900/30",  "Gold"),
+                            ("text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30",  "Yellow"),
+                            ("text-blue-500 bg-blue-100 dark:bg-blue-900/30",        "Blue"),
+                            ("text-emerald-500 bg-emerald-100 dark:bg-emerald-900/30","Green"),
+                            ("text-red-500 bg-red-100 dark:bg-red-900/30",           "Red"),
+                            ("text-purple-500 bg-purple-100 dark:bg-purple-900/30",  "Purple"),
+                            ("text-amber-500 bg-amber-100 dark:bg-amber-900/30",      "Amber"),
+                            ("text-cyan-500 bg-cyan-100 dark:bg-cyan-900/30",        "Cyan"),
+                            ("text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30",  "Indigo"),
+                            ("text-orange-500 bg-orange-100 dark:bg-orange-900/30",  "Orange"),
+                            ("text-slate-600 bg-slate-200 dark:bg-slate-700",        "Grey"),
+                        };
+                    }
+                    @foreach (var (val, label) in systemColorOptions)
+                    {
+                        <option value="@val">@label</option>
+                    }
+                </select>
+            </div>
+
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('editSystemBadgeModal').classList.add('hidden')"
+                        class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Assign Predefined Badge Modal -->
+<div id="assignModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="px-6 pt-6 pb-2 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white">Assign System Badge</h3>
+            <button onclick="document.getElementById('assignModal').classList.add('hidden')"
+                    class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-slate-400 text-[18px]">close</span>
+            </button>
+        </div>
+        <form asp-action="AssignBadge" method="post" class="px-6 pb-6 pt-4 flex flex-col gap-4">
+            @Html.AntiForgeryToken()
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Student</label>
+                <select name="userId" id="assignUserSelect"
+                        class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">— Select a student —</option>
+                    @foreach (var s in summaries)
+                    {
+                        <option value="@s.UserId">@s.FullName (@s.Email)</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Badge</label>
+                <select name="badgeKey"
+                        class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">— Select a badge —</option>
+                    @foreach (var def in definitions)
+                    {
+                        <option value="@def.Key">@def.Name — @def.Description</option>
+                    }
+                </select>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('assignModal').classList.add('hidden')"
+                        class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="submit"
+                        class="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors">Assign Badge</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Assign Custom Badge Modal -->
+<div id="assignCustomModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="px-6 pt-6 pb-2 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white">Assign Custom Badge</h3>
+            <button onclick="document.getElementById('assignCustomModal').classList.add('hidden')"
+                    class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-slate-400 text-[18px]">close</span>
+            </button>
+        </div>
+        <form asp-action="AssignCustomBadge" method="post" class="px-6 pb-6 pt-4 flex flex-col gap-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="customBadgeId" id="assignCustomBadgeId" />
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Badge</label>
+                <p id="assignCustomBadgeName" class="text-sm font-bold text-slate-900 dark:text-white px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"></p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Student</label>
+                <select name="userId"
+                        class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">— Select a student —</option>
+                    @foreach (var s in summaries)
+                    {
+                        <option value="@s.UserId">@s.FullName (@s.Email)</option>
+                    }
+                </select>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('assignCustomModal').classList.add('hidden')"
+                        class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="submit"
+                        class="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors">Assign</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Revoke Badge Modal -->
+<div id="revokeModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="px-6 pt-6 pb-2 flex items-center justify-between">
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white">Revoke Badge</h3>
+            <button onclick="document.getElementById('revokeModal').classList.add('hidden')"
+                    class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-slate-400 text-[18px]">close</span>
+            </button>
+        </div>
+        <form asp-action="RevokeBadge" method="post" class="px-6 pb-6 pt-4 flex flex-col gap-4">
+            @Html.AntiForgeryToken()
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Student</label>
+                <select name="userId" id="revokeUserSelect" onchange="populateRevokeBadges(this.value)"
+                        class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">— Select a student —</option>
+                    @foreach (var s in summaries.Where(s => s.Badges.Any()))
+                    {
+                        <option value="@s.UserId">@s.FullName (@s.Email)</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Badge to revoke</label>
+                <select name="badgeKey" id="revokeBadgeSelect"
+                        class="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary">
+                    <option value="">— Select a badge —</option>
+                </select>
+            </div>
+            <div class="flex gap-3 pt-2">
+                <button type="button" onclick="document.getElementById('revokeModal').classList.add('hidden')"
+                        class="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Cancel</button>
+                <button type="submit"
+                        class="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors">Revoke Badge</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const userBadgeData = {
+    @foreach (var s in summaries)
+    {
+        <text>
+    "@s.UserId": [
+            @foreach (var b in s.Badges)
+            {
+                var resolved = ResolveBadge(b.BadgeKey);
+                var rName = resolved.Name;
+                var rIsCustom = resolved.IsCustom;
+                <text>{ key: "@b.BadgeKey", name: "@Html.Raw(rName.Replace("\"","\\\""))"@(rIsCustom ? ", custom: true" : "") },</text>
+            }
+        ],
+        </text>
+    }
+};
+
+function openAssign(userId, userName) {
+    document.getElementById('assignUserSelect').value = userId;
+    document.getElementById('assignModal').classList.remove('hidden');
+}
+
+function openAssignCustom(badgeId, badgeName) {
+    document.getElementById('assignCustomBadgeId').value = badgeId;
+    document.getElementById('assignCustomBadgeName').textContent = badgeName;
+    document.getElementById('assignCustomModal').classList.remove('hidden');
+}
+
+function openEditSystemBadge(button) {
+    const data = button.dataset;
+    document.getElementById('editSystemBadgeKey').value = data.key || '';
+    document.getElementById('editSystemBadgeKeyDisplay').textContent = data.key || '';
+    document.getElementById('editSystemBadgeName').value = data.name || '';
+    document.getElementById('editSystemBadgeDescription').value = data.description || '';
+    document.getElementById('editSystemBadgeIcon').value = data.icon || '';
+    const colorSelect = document.getElementById('editSystemBadgeColor');
+    if (colorSelect && data.color) {
+        colorSelect.value = data.color;
+    }
+    document.getElementById('editSystemBadgeModal').classList.remove('hidden');
+}
+
+function openEditCustom(button) {
+    const data = button.dataset;
+    document.getElementById('editBadgeId').value = data.id || '';
+    document.getElementById('editBadgeName').value = data.name || '';
+    document.getElementById('editBadgeDescription').value = data.description || '';
+    document.getElementById('editBadgeIcon').value = data.icon || '';
+    document.getElementById('editBadgeAdminNote').value = data.adminnote || '';
+
+    const colorSelect = document.getElementById('editBadgeColor');
+    if (colorSelect && data.color) {
+        colorSelect.value = data.color;
+    }
+
+    document.getElementById('editCustomModal').classList.remove('hidden');
+}
+
+function openRevoke(userId, userName) {
+    document.getElementById('revokeUserSelect').value = userId;
+    populateRevokeBadges(userId);
+    document.getElementById('revokeModal').classList.remove('hidden');
+}
+
+function populateRevokeBadges(userId) {
+    const sel = document.getElementById('revokeBadgeSelect');
+    sel.innerHTML = '<option value="">— Select a badge —</option>';
+    (userBadgeData[userId] || []).forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.key;
+        opt.textContent = (b.custom ? '★ ' : '') + b.name;
+        sel.appendChild(opt);
+    });
+}
+
+// ── Icon type toggle ─────────────────────────────────────────────────
+let currentIconType = 'symbol';
+
+function setIconType(type) {
+    currentIconType = type;
+    const types = ['symbol', 'emoji', 'upload'];
+    const btns  = {
+        symbol: document.getElementById('iconTypeSymbol'),
+        emoji:  document.getElementById('iconTypeEmoji'),
+        upload: document.getElementById('iconTypeUpload'),
+    };
+    const pickers = {
+        symbol: document.getElementById('symbolPicker'),
+        emoji:  document.getElementById('emojiPicker'),
+        upload: document.getElementById('uploadPicker'),
+    };
+    const iconInput   = document.getElementById('customIconInput');
+    const fileInput   = document.getElementById('iconFileInput');
+
+    types.forEach(t => {
+        const active = t === type;
+        pickers[t].classList.toggle('hidden', !active);
+        btns[t].classList.toggle('border-primary', active);
+        btns[t].classList.toggle('bg-primary/10', active);
+        btns[t].classList.toggle('text-primary', active);
+        btns[t].classList.toggle('border-slate-200', !active);
+        btns[t].classList.toggle('dark:border-slate-700', !active);
+        btns[t].classList.toggle('text-slate-500', !active);
+    });
+
+    if (type === 'symbol') {
+        iconInput.value = document.getElementById('iconPreview').textContent.trim() || 'star';
+        fileInput.value = '';
+    } else if (type === 'emoji') {
+        const emoji = document.getElementById('emojiInput').value || '⭐';
+        iconInput.value = emoji;
+        fileInput.value = '';
+    } else {
+        // upload mode — icon will come from file; clear the text icon field
+        iconInput.value = '';
+    }
+}
+
+function syncIconPreview(val) {
+    document.getElementById('iconPreview').textContent = val || 'star';
+    document.getElementById('customIconInput').value = val || 'star';
+}
+
+function setSymbol(sym) {
+    document.getElementById('customIconInput').value = sym;
+    document.getElementById('iconPreview').textContent = sym;
+}
+
+function setEmoji(em) {
+    const cleaned = em.trim();
+    document.getElementById('emojiInput').value = cleaned;
+    document.getElementById('emojiPreview').textContent = cleaned || '⭐';
+    document.getElementById('customIconInput').value = cleaned || '⭐';
+}
+
+// ── Upload icon helpers ──────────────────────────────────────────────
+function previewUploadedIcon(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const wrap    = document.getElementById('uploadPreviewWrap');
+    const img     = document.getElementById('uploadPreview');
+    const nameEl  = document.getElementById('uploadFileName');
+    const reader  = new FileReader();
+    reader.onload = e => {
+        img.src = e.target.result;
+        nameEl.textContent = file.name;
+        wrap.classList.remove('hidden');
+        document.getElementById('uploadDropZone').classList.add('border-primary');
+    };
+    reader.readAsDataURL(file);
+    // clear text icon so only the file is submitted
+    document.getElementById('customIconInput').value = '';
+}
+
+function clearUpload() {
+    document.getElementById('iconFileInput').value = '';
+    document.getElementById('uploadPreviewWrap').classList.add('hidden');
+    document.getElementById('uploadDropZone').classList.remove('border-primary');
+    document.getElementById('uploadPreview').src = '';
+}
+
+// ── Hover tooltip for badges (admin) ────────────────────────────────
+let badgeHoverTooltip = null;
+
+function ensureBadgeHoverTooltip() {
+    if (badgeHoverTooltip) return badgeHoverTooltip;
+    const el = document.createElement('div');
+    el.id = 'badge-hover-tooltip';
+    el.className = 'fixed z-[260] hidden pointer-events-none';
+    document.body.appendChild(el);
+    badgeHoverTooltip = el;
+    return el;
+}
+
+function showBadgeHoverTooltip(trigger) {
+    const name = trigger.getAttribute('data-badge-name') || '';
+    const desc = trigger.getAttribute('data-badge-description') || '';
+    const icon = trigger.getAttribute('data-badge-icon') || '';
+    const tooltip = ensureBadgeHoverTooltip();
+
+    let iconHtml;
+    if (icon && (icon.startsWith('/') || icon.startsWith('http'))) {
+        iconHtml = `<img src="${icon}" class="inline-block w-7 h-7 object-cover rounded-full align-middle" />`;
+    } else if (/^[a-z0-9_]+$/.test(icon)) {
+        iconHtml = `<span class="material-symbols-outlined text-yellow-400 text-[24px]">${icon}</span>`;
+    } else {
+        iconHtml = `<span class="text-[22px] leading-none">${icon}</span>`;
+    }
+
+    tooltip.innerHTML = `
+        <div class="rounded-2xl bg-slate-900/95 text-white shadow-2xl px-3 py-2 border border-slate-700 max-w-xs">
+            <div class="flex items-start gap-2">
+                <div class="shrink-0">
+                    ${iconHtml}
+                </div>
+                <div class="min-w-0">
+                    <p class="text-[13px] font-semibold leading-snug truncate">${name}</p>
+                    ${desc ? `<p class="text-[11px] text-slate-200 leading-snug mt-0.5">${desc}</p>` : ''}
+                </div>
+            </div>
+        </div>`;
+
+    tooltip.style.opacity = '0';
+    tooltip.classList.remove('hidden');
+
+    const rect = trigger.getBoundingClientRect();
+    const tipRect = tooltip.firstElementChild.getBoundingClientRect();
+    const top = window.scrollY + rect.top - tipRect.height - 8;
+    const left = window.scrollX + rect.left + rect.width / 2 - tipRect.width / 2;
+
+    tooltip.style.top = `${Math.max(8, top)}px`;
+    tooltip.style.left = `${Math.max(8, left)}px`;
+    tooltip.style.opacity = '1';
+}
+
+function hideBadgeHoverTooltip() {
+    if (!badgeHoverTooltip) return;
+    badgeHoverTooltip.classList.add('hidden');
+}
+
+// ── Colour picker highlight ─────────────────────────────────────────
+document.querySelectorAll('.color-radio').forEach(radio => {
+    radio.addEventListener('change', () => {
+        document.querySelectorAll('.color-swatch').forEach(sw => {
+            sw.classList.remove('ring-2', 'ring-offset-1', 'ring-slate-400');
+            sw.innerHTML = '';
+        });
+        const swatch = radio.nextElementSibling;
+        swatch.classList.add('ring-2', 'ring-offset-1', 'ring-slate-400');
+        swatch.innerHTML = '<span class="material-symbols-outlined text-white text-[16px]">check</span>';
+    });
+});
+
+// Close modals on backdrop click
+['assignModal','assignCustomModal','revokeModal','createCustomModal','editSystemBadgeModal'].forEach(id => {
+    document.getElementById(id).addEventListener('click', function(e) {
+        if (e.target === this) this.classList.add('hidden');
+    });
+});
+</script>
+}

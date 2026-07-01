@@ -3,18 +3,34 @@
     Layout = "_UserLayout";
     var targetProgress = ViewBag.TargetProgress as StudyTracker.Models.ViewModels.WeeklyTargetProgressViewModel;
     var weeklyLeaderboard = ViewBag.WeeklyLeaderboard as List<StudyTracker.Models.ViewModels.LeaderboardEntryViewModel> ?? new List<StudyTracker.Models.ViewModels.LeaderboardEntryViewModel>();
-    var weekStart = ViewBag.WeekStart as DateOnly? ?? DateOnly.FromDateTime(DateTime.UtcNow);
+    var weekStart = ViewBag.WeekStart as DateOnly? ?? DateHelper.GetWeekStartDate(TimeZoneHelper.GetTodayInCairo());
     var weekEnd = ViewBag.WeekEnd as DateOnly? ?? weekStart.AddDays(6);
     var currentUserRank = ViewBag.CurrentUserRank as int? ?? 0;
     var currentUserHours = ViewBag.CurrentUserHours as decimal? ?? 0;
     var userName = ViewBag.UserName as string ?? "User";
     var currentUserId = ViewBag.CurrentUserId as string ?? "";
     var dailyLeaderboard = ViewBag.DailyLeaderboard as List<StudyTracker.Models.ViewModels.LeaderboardEntryViewModel> ?? new List<StudyTracker.Models.ViewModels.LeaderboardEntryViewModel>();
-    var todayDate = ViewBag.TodayDate as DateOnly? ?? DateOnly.FromDateTime(DateTime.UtcNow);
-    
+    var todayDate = ViewBag.TodayDate as DateOnly? ?? TimeZoneHelper.GetTodayInCairo();
+    var dashboardStreakDays = ViewBag.StreakDays as int? ?? 0;
     var top3Daily = dailyLeaderboard.Take(3).ToList();
 }
 
+@functions {
+    /// Renders a badge icon: Material Symbols name, emoji/text, or uploaded image URL.
+    IHtmlContent BadgeIcon(string icon, string sizeClass) {
+        if ((icon ?? "").StartsWith("/") || (icon ?? "").StartsWith("http"))
+            return new Microsoft.AspNetCore.Html.HtmlString($"<img src=\"{System.Net.WebUtility.HtmlEncode(icon)}\" class=\"inline-block w-6 h-6 object-cover rounded-full align-middle\" />");
+        bool isMaterial = BadgeIconHelper.IsMaterialSymbolName(icon);
+        string html = isMaterial
+            ? $"<span class=\"material-symbols-outlined {sizeClass}\">{System.Net.WebUtility.HtmlEncode(icon)}</span>"
+            : $"<span class=\"{sizeClass} leading-none\">{System.Net.WebUtility.HtmlEncode(icon)}</span>";
+        return new Microsoft.AspNetCore.Html.HtmlString(html);
+    }
+}
+
+<script>
+    window.__studyTrackerCairoToday = '@todayDate.ToString("yyyy-MM-dd")';
+</script>
 <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
     <!-- Welcome Section -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -22,15 +38,16 @@
             <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
             <p class="text-slate-500 dark:text-slate-400 mt-1">Welcome back, @userName! You've been productive today.</p>
         </div>
-        <div class="flex items-center gap-3">
-            <button type="button" onclick="toggleDashboardPanel('logSessionPanel')" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-primary/20">
+        <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <button type="button" onclick="toggleDashboardPanel('logSessionPanel')" class="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-primary/20 active:scale-95">
                 <span class="material-symbols-outlined text-[20px]">add</span>
                 <span>Log Session</span>
             </button>
-            <button type="button" onclick="toggleDashboardPanel('setupTargetPanel')" class="inline-flex items-center gap-2 bg-white text-primary border border-primary/30 hover:bg-primary/5 px-4 py-2.5 rounded-lg font-medium transition-colors shadow-md shadow-primary/10">
-                <span class="material-symbols-outlined text-[20px]">target</span>
-                <span>Setup Target</span>
-            </button>
+            <a asp-controller="Target" asp-action="WeeklyProgress"
+               class="inline-flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-lg font-medium transition-colors shadow-sm active:scale-95">
+                <span class="material-symbols-outlined text-[20px] text-primary">analytics</span>
+                <span>Weekly Progress</span>
+            </a>
         </div>
     </div>
 
@@ -47,13 +64,14 @@
                 </button>
             </div>
             <form id="dashboardSessionForm" asp-controller="Sessions" asp-action="Add" method="post" asp-antiforgery="true" class="flex flex-col gap-6">
-                <!-- Date - Hidden, always today -->
-                <input type="hidden" name="Date" value="@DateTime.UtcNow.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="DashboardQuickLog" value="true" />
+                <!-- Date - Hidden; server uses Cairo today when DashboardQuickLog is set (avoids stale value after midnight). -->
+                <input type="hidden" name="Date" value="@todayDate.ToString("yyyy-MM-dd")" />
                 
-                <!-- Today's Date Display -->
+                <!-- Today's Date Display (Cairo) -->
                 <div class="flex items-center gap-2 px-4 py-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20">
                     <span class="material-symbols-outlined text-primary text-[18px]">calendar_today</span>
-                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Today: @DateTime.UtcNow.ToString("MMM dd, yyyy")</span>
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Today: @todayDate.ToString("MMM dd, yyyy")</span>
                 </div>
 
                 <!-- Duration -->
@@ -71,11 +89,11 @@
                     </div>
                 </div>
 
-                <!-- Notes -->
+                <!-- Notes (required) -->
                 <div class="flex flex-col gap-2">
-                    <label class="text-slate-900 dark:text-slate-100 text-base font-medium" for="Dashboard_Notes">Notes <span class="text-slate-400 font-normal text-xs ml-1">(Optional)</span></label>
+                    <label class="text-slate-900 dark:text-slate-100 text-base font-medium" for="Dashboard_Notes">Notes</label>
                     <div class="relative group">
-                        <textarea id="Dashboard_Notes" name="Notes" rows="3" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all text-sm" placeholder="Add any details about your session, topics covered, or areas to review..."></textarea>
+                        <textarea id="Dashboard_Notes" name="Notes" rows="3" required minlength="1" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all text-sm" placeholder="Describe what you studied (e.g. topics, chapters, exercises)..."></textarea>
                         <div class="absolute right-3 top-3 text-slate-400 group-focus-within:text-primary transition-colors">
                             <span class="material-symbols-outlined text-[18px]">edit_note</span>
                         </div>
@@ -95,98 +113,136 @@
         </div>
     </div>
 
-    <div id="setupTargetPanel" class="fixed inset-0 z-[60] hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300" onclick="toggleDashboardPanel('setupTargetPanel')">
-        <div class="w-full max-w-xl mx-4 bg-white dark:bg-slate-900 rounded-2xl p-6 sm:p-8 shadow-xl border border-slate-100 dark:border-slate-800 transform transition-all duration-300 scale-95 opacity-0" id="setupTargetPanelContent" onclick="event.stopPropagation()">
-            <div class="flex items-start justify-between gap-4 mb-4">
-                <div>
-                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">Weekly Target Setup</h2>
-                    <p class="text-slate-500 dark:text-slate-400 text-sm">Set or update your daily study goal for this week.</p>
-                </div>
-                <button type="button" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" onclick="toggleDashboardPanel('setupTargetPanel')">
-                    <span class="material-symbols-outlined text-[20px]">close</span>
-                </button>
-            </div>
-            <form asp-controller="Target" asp-action="Setup" method="post" class="flex flex-col gap-6">
-                <!-- Daily Target Hours -->
-                <div class="flex flex-col gap-2">
-                    <label class="text-slate-900 dark:text-slate-100 text-base font-medium" for="Dashboard_DailyTargetHours">Daily Target Hours</label>
-                    <div class="relative group">
-                        <input id="Dashboard_DailyTargetHours" name="DailyTargetHours" type="number" step="0.1" min="0.1" max="16" value="3.0" class="w-full h-12 pl-4 pr-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all text-sm" />
-                        <div class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none group-focus-within:text-primary transition-colors">
-                            <span class="material-symbols-outlined text-[18px]">schedule</span>
-                        </div>
-                        <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-1">Enter the number of hours you want to study each day (0.1 - 16 hours).</p>
-                    </div>
-                </div>
-
-                <!-- Week Info (Read-only) -->
-                <div class="flex items-center gap-2 px-4 py-2 bg-primary/5 dark:bg-primary/10 rounded-lg border border-primary/20">
-                    <span class="material-symbols-outlined text-primary text-[18px]">calendar_today</span>
-                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Week: @weekStart.ToString("MMM dd") - @weekStart.AddDays(6).ToString("MMM dd, yyyy")</span>
-                </div>
-                <input type="hidden" name="WeekStartDate" value="@weekStart.ToString("yyyy-MM-dd")" />
-
-                <!-- Actions -->
-                <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-                    <button type="button" class="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs sm:text-sm font-medium" onclick="toggleDashboardPanel('setupTargetPanel')">
-                        Cancel
-                    </button>
-                    <button type="submit" class="px-6 py-2 rounded-lg bg-primary hover:bg-blue-600 text-white font-semibold text-xs sm:text-sm shadow-md shadow-blue-500/30 transition-all">
-                        Save Target
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
     
-    <!-- Middle Section -->
+    <!-- Focus Session + Streak Row -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Daily Goal Widget -->
-        @if (targetProgress != null)
-        {
-            <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-                <div class="flex justify-between items-start mb-6">
+        <!-- Focus Session Timer -->
+        <div class="lg:col-span-2">
+            <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                     <div>
-                        <h3 class="text-lg font-bold text-slate-900 dark:text-white">Daily Goal</h3>
-                        <p class="text-sm text-slate-500 dark:text-slate-400">Keep up the momentum!</p>
+                        <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[22px] text-primary">hourglass_top</span>
+                            Focus Session
+                        </h2>
                     </div>
-                    <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold @(targetProgress.IsAchieved ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-primary/10 text-primary")">
-                        @(targetProgress.IsAchieved ? "Achieved" : "On Track")
-                    </span>
-                </div>
-                <div class="space-y-4">
-                    <div class="flex justify-between items-end">
-                        <span id="progressPercentage" class="text-4xl font-bold text-slate-900 dark:text-white transition-all duration-500 ease-out" data-value="@targetProgress.ProgressPercentage.ToString("F0")">@targetProgress.ProgressPercentage.ToString("F0")%</span>
-                        <span id="todayDoneTime" class="text-sm font-medium text-slate-500 dark:text-slate-400 transition-all duration-500 ease-out" data-hours="@(targetProgress.TodayDoneMinutes / 60)" data-minutes="@(targetProgress.TodayDoneMinutes % 60)">@(targetProgress.TodayDoneMinutes / 60)h @(targetProgress.TodayDoneMinutes % 60)m / @(targetProgress.DailyTargetMinutes / 60)h</span>
-                    </div>
-                    <div class="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <div class="h-full bg-primary rounded-full transition-all duration-700 ease-out" style="width: @(Math.Min(targetProgress.ProgressPercentage, 100))%" data-progress="@(Math.Min(targetProgress.ProgressPercentage, 100))"></div>
-                    </div>
-                    <div class="flex justify-between text-xs text-slate-400 dark:text-slate-500 pt-2">
-                        <span>0h</span>
-                        <span>@(targetProgress.DailyTargetMinutes / 60 / 2)h</span>
-                        <span>Target: @(targetProgress.DailyTargetMinutes / 60)h</span>
+                    <div id="focusSessionStatusPill" class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                        <span>Idle</span>
                     </div>
                 </div>
-            </div>
+
+                <!-- Required notes before starting -->
+                <div class="mb-4">
+                    <label for="focusNotesInput" class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1 block">What will you study? <span class="text-red-500">*</span></label>
+                    <input id="focusNotesInput" type="text" maxlength="250" required placeholder="e.g. Math Chapter 5, Physics problems..."
+                           class="w-full h-11 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm px-4 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary" />
+                    <p id="focusNotesError" style="display:none" class="text-red-500 text-xs mt-1.5 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">error</span> Please describe what you'll study before starting.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:items-center">
+                    <div class="space-y-3">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Focus time</label>
+                            <div class="flex gap-2">
+                                <div class="flex-1">
+                                    <input id="focusHoursInput" type="number" min="0" max="23" value="0"
+                                           class="w-full h-11 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                           placeholder="Hours" />
+                                </div>
+                                <div class="flex-1">
+                                    <input id="focusMinutesInput" type="number" min="0" max="59" value="50"
+                                           class="w-full h-11 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                           placeholder="Minutes" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total break time</label>
+                            <div class="flex gap-2">
+                                <div class="flex-1">
+                                    <input id="breakHoursInput" type="number" min="0" max="23" value="0"
+                                           class="w-full h-11 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                           placeholder="Hours" />
+                                </div>
+                                <div class="flex-1">
+                                    <input id="breakMinutesInput" type="number" min="0" max="59" value="10"
+                                           class="w-full h-11 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm px-3 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                           placeholder="Minutes" />
+                                </div>
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Break time cannot exceed 30% of total focus time.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col items-center justify-center gap-3">
+                        
+                        <div class="relative size-40 flex items-center justify-center">
+                            <svg class="size-full -rotate-90" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+                                <circle class="stroke-current text-slate-200 dark:text-slate-700" cx="18" cy="18" fill="none" r="16" stroke-width="3"></circle>
+                                <circle id="focusStudyCircle" class="stroke-current text-primary" cx="18" cy="18" fill="none" r="16" stroke-dasharray="0 100" stroke-dashoffset="0" stroke-linecap="round" stroke-width="3"></circle>
+                                <circle id="focusBreakCircle" class="stroke-current text-amber-400" cx="18" cy="18" fill="none" r="16" stroke-dasharray="0 100" stroke-dashoffset="0" stroke-linecap="round" stroke-width="3"></circle>
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center gap-1">
+                                <span class="material-symbols-outlined text-[26px] text-primary">hourglass_top</span>
+                                <p id="focusSessionTimeLabel" class="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                                    00:00
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2 items-stretch">
+                        <div class="flex gap-2">
+                            <button id="focusStartBtn" type="button"
+                                    class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-sm shadow-primary/30 transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+                                <span>Start</span>
+                            </button>
+                            <button id="focusPauseBtn" type="button" style="display:none"
+                                    class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">pause</span>
+                                <span>Pause</span>
+                            </button>
+                            <button id="focusResumeBtn" type="button" style="display:none"
+                                    class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-sm shadow-primary/30 transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">play_arrow</span>
+                                <span>Resume</span>
+                            </button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="focusEndBtn" type="button" style="display:none"
+                                    class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                                <span class="material-symbols-outlined text-[18px]">stop_circle</span>
+                                <span>End session</span>
+                            </button>
+                        </div>
+                        <!-- Alarm volume -->
+                        <div class="flex items-center gap-2 pt-1">
+                            <button type="button" id="volumeToggleBtn" class="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Toggle mute">
+                                <span id="volumeIcon" class="material-symbols-outlined text-[18px]">volume_up</span>
+                            </button>
+                            <input type="range" id="alarmVolumeSlider"
+                                   min="0" max="100" value="80"
+                                   class="flex-1 h-1.5 rounded-full cursor-pointer accent-primary" />
+                            <span id="volumeLabel" class="text-[11px] text-slate-400 dark:text-slate-500 w-7 text-right tabular-nums">80%</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Timer finished alert (shown when user returns to tab) -->
+                <div id="focusFinishedBanner" style="display:none" class="mt-4 p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-300 text-sm font-medium flex items-center gap-3 animate-pulse">
+                    <span class="material-symbols-outlined text-[24px]">check_circle</span>
+                    <span>Your focus session has finished! The session has been logged.</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- Streak Widget (activity-based; always shown, independent of weekly target) -->
+        @{
+            var streakPercentage = dashboardStreakDays > 0 ? Math.Min((dashboardStreakDays / 30.0) * 100, 100) : 0;
         }
-        else
+        @if (dashboardStreakDays > 0)
         {
-            <div class="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
-                <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-2">Daily Goal</h3>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Set your weekly target to track your daily progress.</p>
-                <a asp-controller="Target" asp-action="Setup" class="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-                    <span class="material-symbols-outlined text-[18px]">target</span>
-                    <span>Set Target</span>
-                </a>
-            </div>
-        }
-        
-        <!-- Streak Widget -->
-        @if (targetProgress != null)
-        {
-            var streakDays = targetProgress.StreakDays;
-            var streakPercentage = streakDays > 0 ? Math.Min((streakDays / 30.0) * 100, 100) : 0;
             <div class="lg:col-span-1 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl border-2 border-blue-200 dark:border-blue-800 shadow-lg shadow-blue-200/50 dark:shadow-blue-900/30 p-6 flex flex-col items-center justify-center relative overflow-hidden">
                 <div class="absolute inset-0 bg-gradient-to-br from-blue-100/20 to-transparent dark:from-blue-800/10 opacity-50"></div>
                 <div class="relative z-10 flex flex-col items-center w-full">
@@ -198,14 +254,14 @@
                         <div class="absolute inset-0 flex flex-col items-center justify-center">
                             <span class="material-symbols-outlined text-5xl text-primary mb-0.5">local_fire_department</span>
                             <div class="text-center">
-                                <div id="streakDays" class="text-4xl font-black text-slate-900 dark:text-white leading-none" data-streak="@streakDays">@streakDays</div>
+                                <div id="streakDays" class="text-4xl font-black text-slate-900 dark:text-white leading-none" data-streak="@dashboardStreakDays">@dashboardStreakDays</div>
                                 <div class="text-[10px] font-bold text-primary uppercase tracking-wider mt-0.5">Days</div>
                             </div>
                         </div>
                     </div>
                     <div class="text-center space-y-1">
                         <p class="text-lg font-bold text-slate-900 dark:text-white">Streak Active</p>
-                        <p class="text-sm text-slate-600 dark:text-slate-300 font-medium">You’ve studied <span class="font-bold text-primary">@streakDays</span> day@(streakDays == 1 ? "" : "s") in a row. Keep going!</p>
+                        <p class="text-sm text-slate-600 dark:text-slate-300 font-medium">You've studied <span class="font-bold text-primary">@dashboardStreakDays</span> day@(dashboardStreakDays == 1 ? "" : "s") in a row. Keep going!</p>
                     </div>
                 </div>
             </div>
@@ -233,17 +289,68 @@
         }
     </div>
     
+    <!-- Mobile quick link to Todo page -->
+    <a asp-controller="Todo" asp-action="Index"
+       class="md:hidden flex items-center justify-between bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm px-4 py-3.5 active:scale-95 transition-transform">
+        <span class="inline-flex items-center gap-3">
+            <span class="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+                <span class="material-symbols-outlined text-[18px] text-emerald-600 dark:text-emerald-400">checklist</span>
+            </span>
+            <span class="text-sm font-semibold text-slate-900 dark:text-white">Today's Tasks</span>
+        </span>
+        <span class="material-symbols-outlined text-[18px] text-slate-400">chevron_right</span>
+    </a>
+
+    <!-- ── Daily Todo List (desktop only — mobile has /Todo page) ── -->
+    <div class="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm p-6">
+        <div class="flex items-center gap-2 mb-5">
+            <span class="material-symbols-outlined text-primary text-[22px]">checklist</span>
+            <h2 class="text-base font-bold text-slate-900 dark:text-white">Today's Tasks</h2>
+            <span id="todoCount" class="ml-auto text-xs text-slate-400 dark:text-slate-500"></span>
+            <button id="todoClearBtn" onclick="todoClearAll()"
+                    class="hidden items-center gap-1 text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-2.5 py-1 rounded-lg transition-colors ml-1">
+                <span class="material-symbols-outlined text-[15px]">delete_sweep</span>
+                <span>Clear all</span>
+            </button>
+        </div>
+
+        <!-- Add new task -->
+        <div class="flex gap-2 mb-5">
+            <input id="todoInput" type="text" maxlength="500" placeholder="Add a task for today…"
+                   class="flex-1 min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 text-sm px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors" />
+            <button id="todoAddBtn" onclick="todoAdd()"
+                    class="inline-flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors shadow-sm shadow-primary/20 shrink-0">
+                <span class="material-symbols-outlined text-[18px]">add</span>
+                <span>Add</span>
+            </button>
+        </div>
+
+        <!-- Task list -->
+        <ul id="todoList" class="space-y-2">
+            <!-- filled by JS -->
+        </ul>
+
+        <!-- Empty state -->
+        <div id="todoEmpty" class="hidden flex-col items-center justify-center py-8 text-center gap-2">
+            <span class="material-symbols-outlined text-slate-300 dark:text-slate-600 text-[40px]">task_alt</span>
+            <p class="text-sm text-slate-400 dark:text-slate-500">No tasks yet. Add your first task above!</p>
+        </div>
+    </div>
+
+    <!-- Hidden antiforgery form for AJAX -->
+    <form id="todoAntiforgery" style="display:none">@Html.AntiForgeryToken()</form>
+
     <!-- Daily Leaderboard Section -->
-    <div class="flex flex-col gap-6 mt-8">
+    <div class="flex flex-col gap-6">
         <!-- Page Header -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6">
-            <div class="flex flex-col gap-2">
-                <h2 class="text-slate-900 dark:text-white text-3xl md:text-4xl font-black tracking-tight">Daily Leaderboard 🏆</h2>
-                <p class="text-slate-500 dark:text-slate-400 text-base">See who's studying the hardest today! Keep up the good work.</p>
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <div>
+                <h2 class="text-slate-900 dark:text-white text-2xl sm:text-3xl md:text-4xl font-black tracking-tight">Today's Leaders 🏆</h2>
+                <p class="text-slate-500 dark:text-slate-400 text-sm sm:text-base mt-1">See who's studied the most today!</p>
             </div>
-            <div class="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                <span class="material-symbols-outlined text-slate-400 text-[20px]">calendar_today</span>
-                <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">@todayDate.ToString("MMM dd, yyyy")</span>
+            <div class="inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm self-start sm:self-auto">
+                <span class="material-symbols-outlined text-slate-400 text-[16px]">calendar_today</span>
+                <span class="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">@todayDate.ToString("MMM dd, yyyy")</span>
             </div>
         </div>
         
@@ -256,17 +363,18 @@
                 var firstPlace = top3Daily[0];
                 var firstHours = (int)firstPlace.TotalHours;
                 var firstMins = (int)((firstPlace.TotalHours - firstHours) * 60);
-                <div class="flex justify-center items-end mt-8">
+                <div class="flex justify-center items-end mt-4 sm:mt-8">
                     <div class="w-full max-w-md relative flex flex-col items-center z-10">
-                        <div class="absolute -top-10 animate-bounce">
+                        <div class="relative flex justify-center pt-2 sm:absolute sm:-top-10 sm:pt-0 animate-bounce z-20">
                             <span class="text-4xl">👑</span>
                         </div>
-                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-8 border-2 border-yellow-400/30 dark:border-yellow-500/30 shadow-lg shadow-yellow-500/10 relative overflow-hidden group hover:-translate-y-2 transition-transform duration-300">
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border-2 border-yellow-400/30 dark:border-yellow-500/30 shadow-lg shadow-yellow-500/10 relative overflow-hidden group hover:-translate-y-2 transition-transform duration-300">
                             <div class="absolute inset-0 bg-gradient-to-b from-yellow-50/50 to-transparent dark:from-yellow-900/10 opacity-50"></div>
                             <div class="absolute top-0 inset-x-0 h-1.5 bg-yellow-400"></div>
                             <div class="relative flex flex-col items-center gap-5">
                                 <div class="relative">
-                                    <div class="size-28 rounded-full border-4 border-yellow-400 dark:border-yellow-500 p-1 bg-white dark:bg-slate-800">
+                                    <div class="size-28 rounded-full border-4 border-yellow-400 dark:border-yellow-500 p-1 bg-white dark:bg-slate-800 user-avatar"
+                                         data-user-id="@firstPlace.UserId">
                                         @if (!string.IsNullOrEmpty(firstPlace.ProfilePictureUrl))
                                         {
                                             <img src="@firstPlace.ProfilePictureUrl" alt="@firstPlace.FullName" class="size-full rounded-full object-cover" 
@@ -287,7 +395,40 @@
                                     </div>
                                 </div>
                                 <div class="text-center mt-2">
-                                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">@(firstPlace.IsCurrentUser ? "You" : firstPlace.FullName)</h3>
+                                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">@firstPlace.FullName @(firstPlace.IsCurrentUser ? "(You)" : "")</h3>
+                                    @if (firstPlace.Badges.Any())
+                                    {
+                                        <div class="flex flex-wrap justify-center gap-1 mt-1.5">
+                                            @foreach (var b in firstPlace.Badges)
+                                            {
+                                                <span class="relative inline-flex items-center gap-0.5 px-2 py-1 rounded-full text-xs font-semibold @b.Color group" dir="ltr">
+                                                    @Html.Raw(BadgeIcon(b.Icon, "text-base"))
+                                                    @await Html.PartialAsync("_BadgeTierMark", new BadgeTierMarkViewModel(b.TierLevel, b.CategoryId))
+
+                                                    <div class="pointer-events-none absolute left-1/2 -translate-x-1/2 -top-2 -translate-y-full opacity-0 group-hover:opacity-100 group-hover:-translate-y-3 transition-all duration-150 z-20">
+                                                        <div class="rounded-2xl bg-slate-900/95 text-white shadow-2xl px-3 py-2 border border-slate-700 max-w-xs">
+                                                            <div class="flex items-start gap-2">
+                                                                <div class="shrink-0">
+                                                                    @Html.Raw(BadgeIcon(b.Icon, "text-[24px]"))
+                                                                </div>
+                                                                <div class="min-w-0">
+                                                                    <p class="text-[13px] font-semibold leading-snug truncate">@b.Name</p>
+                                                                    @if (b.TierLevel is int btl)
+                                                                    {
+                                                                        <p class="text-[10px] font-mono text-amber-200/95 mt-0.5">Tier @BadgeTierUi.ToRoman(btl)</p>
+                                                                    }
+                                                                    @if (!string.IsNullOrWhiteSpace(b.Description))
+                                                                    {
+                                                                        <p class="text-[11px] text-slate-200 leading-snug mt-0.5">@b.Description</p>
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </span>
+                                            }
+                                        </div>
+                                    }
                                 </div>
                                 <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/30 rounded-xl px-6 py-3 w-full text-center">
                                     <span class="text-4xl font-black text-yellow-600 dark:text-yellow-400 block tracking-tight transition-all duration-500 ease-out" data-hours="@firstHours" data-minutes="@firstMins">@(firstHours)h @(firstMins)m</span>
@@ -307,18 +448,19 @@
                 var firstMins = (int)((firstPlace.TotalHours - firstHours) * 60);
                 var secondHours = (int)secondPlace.TotalHours;
                 var secondMins = (int)((secondPlace.TotalHours - secondHours) * 60);
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end mt-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end mt-4 sm:mt-8">
                     <!-- 2nd Place -->
                     <div class="order-2 md:order-1 relative flex flex-col items-center">
-                        <div class="absolute -top-12 z-20">
+                        <div class="relative flex justify-center pt-2 sm:absolute sm:-top-12 sm:pt-0 z-20">
                             <span class="text-5xl drop-shadow-lg">🥈</span>
                         </div>
-                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 border-2 border-slate-300 dark:border-slate-600 shadow-md shadow-slate-200/50 dark:shadow-slate-900/50 relative overflow-visible group hover:-translate-y-1 transition-transform duration-300 mt-4">
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 border-2 border-slate-300 dark:border-slate-600 shadow-md shadow-slate-200/50 dark:shadow-slate-900/50 relative overflow-visible group hover:-translate-y-1 transition-transform duration-300 sm:mt-4">
                             <div class="absolute inset-0 bg-gradient-to-b from-slate-50/30 to-transparent dark:from-slate-700/20 opacity-50"></div>
                             <div class="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300"></div>
                             <div class="flex flex-col items-center gap-4">
                                 <div class="relative">
-                                    <div class="size-20 rounded-full border-4 border-slate-300 dark:border-slate-500 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 overflow-hidden shadow-md">
+                                    <div class="size-20 rounded-full border-4 border-slate-300 dark:border-slate-500 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 overflow-hidden shadow-md user-avatar"
+                                         data-user-id="@secondPlace.UserId">
                                         @if (!string.IsNullOrEmpty(secondPlace.ProfilePictureUrl))
                                         {
                                             <img src="@secondPlace.ProfilePictureUrl" alt="@secondPlace.FullName" class="size-full object-cover" 
@@ -339,27 +481,40 @@
                                     </div>
                                 </div>
                                 <div class="text-center">
-                                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">@(secondPlace.IsCurrentUser ? "You" : secondPlace.FullName)</h3>
+                                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">@secondPlace.FullName @(secondPlace.IsCurrentUser ? "(You)" : "")</h3>
+                                    @if (secondPlace.Badges.Any())
+                                    {
+                                        <div class="flex flex-wrap justify-center gap-1 mt-1.5">
+                                            @foreach (var b in secondPlace.Badges)
+                                            {
+                                                <span class="inline-flex items-center gap-0.5 px-2 py-1 rounded-full text-xs font-semibold @b.Color" dir="ltr" title="@BadgeTierUi.TooltipTitle(b.Name, b.TierLevel)">
+                                                    @Html.Raw(BadgeIcon(b.Icon, "text-base"))
+                                                    @await Html.PartialAsync("_BadgeTierMark", new BadgeTierMarkViewModel(b.TierLevel, b.CategoryId))
+                                                </span>
+                                            }
+                                        </div>
+                                    }
                                 </div>
                                 <div class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 w-full text-center shadow-sm">
                                     <span class="text-2xl font-black text-slate-700 dark:text-slate-200 block transition-all duration-500 ease-out" data-hours="@secondHours" data-minutes="@secondMins">@(secondHours)h @(secondMins)m</span>
-                                    <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Studied</span>
+                                    <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">STUDY TIME</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                     
                     <!-- 1st Place (Winner) -->
-                    <div class="order-1 md:order-2 relative flex flex-col items-center z-10 -mt-8 md:-mt-12 mb-4 md:mb-0 w-full">
-                        <div class="absolute -top-14 z-20 animate-bounce">
+                    <div class="order-1 md:order-2 relative flex flex-col items-center z-10 sm:-mt-8 md:-mt-12 mb-2 md:mb-0 w-full">
+                        <div class="relative flex justify-center pt-2 sm:absolute sm:-top-14 sm:pt-0 z-20 animate-bounce">
                             <span class="text-6xl drop-shadow-lg">👑</span>
                         </div>
-                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-8 border-2 border-yellow-400/30 dark:border-yellow-500/30 shadow-lg shadow-yellow-500/10 relative overflow-visible group hover:-translate-y-2 transition-transform duration-300 mt-6">
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border-2 border-yellow-400/30 dark:border-yellow-500/30 shadow-lg shadow-yellow-500/10 relative overflow-visible group hover:-translate-y-2 transition-transform duration-300 sm:mt-6">
                             <div class="absolute inset-0 bg-gradient-to-b from-yellow-50/50 to-transparent dark:from-yellow-900/10 opacity-50"></div>
                             <div class="absolute top-0 inset-x-0 h-1.5 bg-yellow-400"></div>
-                            <div class="relative flex flex-col items-center gap-5">
+                            <div class="relative flex flex-col items-center gap-4 sm:gap-5">
                                 <div class="relative">
-                                    <div class="size-28 rounded-full border-4 border-yellow-400 dark:border-yellow-500 p-1 bg-white dark:bg-slate-800">
+                                    <div class="size-20 sm:size-28 rounded-full border-4 border-yellow-400 dark:border-yellow-500 p-1 bg-white dark:bg-slate-800 user-avatar"
+                                         data-user-id="@firstPlace.UserId">
                                         @if (!string.IsNullOrEmpty(firstPlace.ProfilePictureUrl))
                                         {
                                             <img src="@firstPlace.ProfilePictureUrl" alt="@firstPlace.FullName" class="size-full rounded-full object-cover" 
@@ -379,12 +534,24 @@
                                         #1 Place
                                     </div>
                                 </div>
-                                <div class="text-center mt-2">
-                                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">@(firstPlace.IsCurrentUser ? "You" : firstPlace.FullName)</h3>
+                                <div class="text-center mt-2 min-w-0 w-full">
+                                    <h3 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white truncate">@firstPlace.FullName @(firstPlace.IsCurrentUser ? "(You)" : "")</h3>
+                                    @if (firstPlace.Badges.Any())
+                                    {
+                                        <div class="flex flex-wrap justify-center gap-1 mt-1.5">
+                                            @foreach (var b in firstPlace.Badges)
+                                            {
+                                                <span class="inline-flex items-center gap-0.5 px-2 py-1 rounded-full text-xs font-semibold @b.Color" dir="ltr" title="@BadgeTierUi.TooltipTitle(b.Name, b.TierLevel)">
+                                                    @Html.Raw(BadgeIcon(b.Icon, "text-base"))
+                                                    @await Html.PartialAsync("_BadgeTierMark", new BadgeTierMarkViewModel(b.TierLevel, b.CategoryId))
+                                                </span>
+                                            }
+                                        </div>
+                                    }
                                 </div>
-                                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/30 rounded-xl px-6 py-3 w-full text-center">
-                                    <span class="text-4xl font-black text-yellow-600 dark:text-yellow-400 block tracking-tight transition-all duration-500 ease-out" data-hours="@firstHours" data-minutes="@firstMins">@(firstHours)h @(firstMins)m</span>
-                                    <span class="text-xs text-yellow-600/60 dark:text-yellow-400/60 uppercase tracking-wider font-bold">Study Time</span>
+                                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/30 rounded-xl px-4 sm:px-6 py-3 w-full text-center">
+                                    <span class="text-3xl sm:text-4xl font-black text-yellow-600 dark:text-yellow-400 block tracking-tight transition-all duration-500 ease-out" data-hours="@firstHours" data-minutes="@firstMins">@(firstHours)h @(firstMins)m</span>
+                                    <span class="text-xs text-yellow-600/60 dark:text-yellow-400/60 uppercase tracking-wider font-bold">STUDY TIME</span>
                                 </div>
                             </div>
                         </div>
@@ -406,29 +573,30 @@
                 var thirdHours = (int)thirdPlace.TotalHours;
                 var thirdMins = (int)((thirdPlace.TotalHours - thirdHours) * 60);
                 <!-- Three Winners - Full Podium -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end mt-8">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end mt-4 sm:mt-8">
                     <!-- 2nd Place -->
                     <div class="order-2 md:order-1 relative flex flex-col items-center">
-                        <div class="absolute -top-12 z-20">
+                        <div class="relative flex justify-center pt-2 sm:absolute sm:-top-12 sm:pt-0 z-20">
                             <span class="text-5xl drop-shadow-lg">🥈</span>
                         </div>
-                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 border-2 border-slate-300 dark:border-slate-600 shadow-md shadow-slate-200/50 dark:shadow-slate-900/50 relative overflow-visible group hover:-translate-y-1 transition-transform duration-300 mt-4">
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-5 sm:p-7 border-2 border-slate-300 dark:border-slate-600 shadow-md shadow-slate-200/50 dark:shadow-slate-900/50 relative overflow-visible group hover:-translate-y-1 transition-transform duration-300 sm:mt-2">
                             <div class="absolute inset-0 bg-gradient-to-b from-slate-50/30 to-transparent dark:from-slate-700/20 opacity-50"></div>
                             <div class="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-slate-300 via-slate-400 to-slate-300"></div>
                             <div class="flex flex-col items-center gap-4">
                                 <div class="relative">
-                                    <div class="size-20 rounded-full border-4 border-slate-300 dark:border-slate-500 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 overflow-hidden shadow-md">
+                                    <div class="size-24 rounded-full border-4 border-slate-300 dark:border-slate-500 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 overflow-hidden shadow-md user-avatar"
+                                         data-user-id="@secondPlace.UserId">
                                         @if (!string.IsNullOrEmpty(secondPlace.ProfilePictureUrl))
                                         {
                                             <img src="@secondPlace.ProfilePictureUrl" alt="@secondPlace.FullName" class="size-full object-cover" 
                                                  onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                                            <div class="size-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-lg" style="display: none;">
+                                            <div class="size-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-xl" style="display: none;">
                                                 @secondPlace.FullName.Substring(0, 1).ToUpper()
                                             </div>
                                         }
                                         else
                                         {
-                                            <div class="size-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-lg">
+                                            <div class="size-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-xl">
                                                 @secondPlace.FullName.Substring(0, 1).ToUpper()
                                             </div>
                                         }
@@ -439,9 +607,21 @@
                                 </div>
                                 <div class="text-center">
                                     <h3 class="text-lg font-bold text-slate-900 dark:text-white">@(secondPlace.IsCurrentUser ? "You" : secondPlace.FullName)</h3>
+                                    @if (secondPlace.Badges.Any())
+                                    {
+                                        <div class="flex flex-wrap justify-center gap-1 mt-1.5">
+                                            @foreach (var b in secondPlace.Badges)
+                                            {
+                                                <span class="inline-flex items-center gap-0.5 px-2 py-1 rounded-full text-xs font-semibold @b.Color" dir="ltr" title="@BadgeTierUi.TooltipTitle(b.Name, b.TierLevel)">
+                                                    @Html.Raw(BadgeIcon(b.Icon, "text-base"))
+                                                    @await Html.PartialAsync("_BadgeTierMark", new BadgeTierMarkViewModel(b.TierLevel, b.CategoryId))
+                                                </span>
+                                            }
+                                        </div>
+                                    }
                                 </div>
                                 <div class="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2 w-full text-center shadow-sm">
-                                    <span class="text-2xl font-black text-slate-700 dark:text-slate-200 block transition-all duration-500 ease-out" data-hours="@secondHours" data-minutes="@secondMins">@(secondHours)h @(secondMins)m</span>
+                                    <span class="text-3xl font-black text-slate-700 dark:text-slate-200 block transition-all duration-500 ease-out" data-hours="@secondHours" data-minutes="@secondMins">@(secondHours)h @(secondMins)m</span>
                                     <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold">Studied</span>
                                 </div>
                             </div>
@@ -449,16 +629,17 @@
                     </div>
                     
                     <!-- 1st Place (Winner) -->
-                    <div class="order-1 md:order-2 relative flex flex-col items-center z-10 -mt-8 md:-mt-12 mb-4 md:mb-0 w-full">
-                        <div class="absolute -top-14 z-20 animate-bounce">
+                    <div class="order-1 md:order-2 relative flex flex-col items-center z-10 sm:-mt-8 md:-mt-12 mb-2 md:mb-0 w-full">
+                        <div class="relative flex justify-center pt-2 sm:absolute sm:-top-14 sm:pt-0 z-20 animate-bounce">
                             <span class="text-6xl drop-shadow-lg">👑</span>
                         </div>
-                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-8 border-2 border-yellow-400/30 dark:border-yellow-500/30 shadow-lg shadow-yellow-500/10 relative overflow-visible group hover:-translate-y-2 transition-transform duration-300 mt-6">
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border-2 border-yellow-400/30 dark:border-yellow-500/30 shadow-lg shadow-yellow-500/10 relative overflow-visible group hover:-translate-y-2 transition-transform duration-300 sm:mt-6">
                             <div class="absolute inset-0 bg-gradient-to-b from-yellow-50/50 to-transparent dark:from-yellow-900/10 opacity-50"></div>
                             <div class="absolute top-0 inset-x-0 h-1.5 bg-yellow-400"></div>
-                            <div class="relative flex flex-col items-center gap-5">
+                            <div class="relative flex flex-col items-center gap-4 sm:gap-5">
                                 <div class="relative">
-                                    <div class="size-28 rounded-full border-4 border-yellow-400 dark:border-yellow-500 p-1 bg-white dark:bg-slate-800">
+                                    <div class="size-20 sm:size-28 rounded-full border-4 border-yellow-400 dark:border-yellow-500 p-1 bg-white dark:bg-slate-800 user-avatar"
+                                         data-user-id="@firstPlace.UserId">
                                         @if (!string.IsNullOrEmpty(firstPlace.ProfilePictureUrl))
                                         {
                                             <img src="@firstPlace.ProfilePictureUrl" alt="@firstPlace.FullName" class="size-full rounded-full object-cover" 
@@ -478,11 +659,23 @@
                                         #1 Place
                                     </div>
                                 </div>
-                                <div class="text-center mt-2">
-                                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">@(firstPlace.IsCurrentUser ? "You" : firstPlace.FullName)</h3>
+                                <div class="text-center mt-2 min-w-0 w-full">
+                                    <h3 class="text-lg sm:text-xl font-bold text-slate-900 dark:text-white truncate">@(firstPlace.IsCurrentUser ? "You" : firstPlace.FullName)</h3>
+                                    @if (firstPlace.Badges.Any())
+                                    {
+                                        <div class="flex flex-wrap justify-center gap-1 mt-1.5">
+                                            @foreach (var b in firstPlace.Badges)
+                                            {
+                                                <span class="inline-flex items-center gap-0.5 px-2 py-1 rounded-full text-xs font-semibold @b.Color" dir="ltr" title="@BadgeTierUi.TooltipTitle(b.Name, b.TierLevel)">
+                                                    @Html.Raw(BadgeIcon(b.Icon, "text-base"))
+                                                    @await Html.PartialAsync("_BadgeTierMark", new BadgeTierMarkViewModel(b.TierLevel, b.CategoryId))
+                                                </span>
+                                            }
+                                        </div>
+                                    }
                                 </div>
-                                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/30 rounded-xl px-6 py-3 w-full text-center">
-                                    <span class="text-4xl font-black text-yellow-600 dark:text-yellow-400 block tracking-tight transition-all duration-500 ease-out" data-hours="@firstHours" data-minutes="@firstMins">@(firstHours)h @(firstMins)m</span>
+                                <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/30 rounded-xl px-4 sm:px-6 py-3 w-full text-center">
+                                    <span class="text-3xl sm:text-4xl font-black text-yellow-600 dark:text-yellow-400 block tracking-tight transition-all duration-500 ease-out" data-hours="@firstHours" data-minutes="@firstMins">@(firstHours)h @(firstMins)m</span>
                                     <span class="text-xs text-yellow-600/60 dark:text-yellow-400/60 uppercase tracking-wider font-bold">Study Time</span>
                                 </div>
                             </div>
@@ -491,40 +684,53 @@
                     
                     <!-- 3rd Place -->
                     <div class="order-3 relative flex flex-col items-center">
-                        <div class="absolute -top-12 z-20">
-                            <span class="text-5xl drop-shadow-lg">🥉</span>
+                        <div class="relative flex justify-center pt-2 sm:absolute sm:-top-10 sm:pt-0 z-20">
+                            <span class="text-4xl drop-shadow-lg">🥉</span>
                         </div>
-                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-6 border-2 border-orange-300 dark:border-orange-700 shadow-md shadow-orange-200/50 dark:shadow-orange-900/30 relative overflow-visible group hover:-translate-y-1 transition-transform duration-300 mt-4">
+                        <div class="w-full bg-white dark:bg-slate-800 rounded-2xl p-5 border-2 border-orange-300 dark:border-orange-700 shadow-md shadow-orange-200/50 dark:shadow-orange-900/30 relative overflow-visible group hover:-translate-y-1 transition-transform duration-300 sm:mt-7">
                             <div class="absolute inset-0 bg-gradient-to-b from-orange-50/30 to-transparent dark:from-orange-900/10 opacity-50"></div>
-                            <div class="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-orange-300 via-orange-400 to-orange-300"></div>
-                            <div class="flex flex-col items-center gap-4">
+                            <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-orange-300 via-orange-400 to-orange-300"></div>
+                            <div class="flex flex-col items-center gap-3">
                                 <div class="relative">
-                                    <div class="size-20 rounded-full border-4 border-orange-300 dark:border-orange-600 bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-800 dark:to-orange-900 overflow-hidden shadow-md">
+                                    <div class="size-16 rounded-full border-4 border-orange-300 dark:border-orange-600 bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-800 dark:to-orange-900 overflow-hidden shadow-md user-avatar"
+                                         data-user-id="@thirdPlace.UserId">
                                         @if (!string.IsNullOrEmpty(thirdPlace.ProfilePictureUrl))
                                         {
                                             <img src="@thirdPlace.ProfilePictureUrl" alt="@thirdPlace.FullName" class="size-full object-cover" 
                                                  onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                                            <div class="size-full flex items-center justify-center text-orange-700 dark:text-orange-300 font-semibold text-lg" style="display: none;">
+                                            <div class="size-full flex items-center justify-center text-orange-700 dark:text-orange-300 font-semibold text-base" style="display: none;">
                                                 @thirdPlace.FullName.Substring(0, 1).ToUpper()
                                             </div>
                                         }
                                         else
                                         {
-                                            <div class="size-full flex items-center justify-center text-orange-700 dark:text-orange-300 font-semibold text-lg">
+                                            <div class="size-full flex items-center justify-center text-orange-700 dark:text-orange-300 font-semibold text-base">
                                                 @thirdPlace.FullName.Substring(0, 1).ToUpper()
                                             </div>
                                         }
                                     </div>
-                                    <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-br from-orange-400 to-orange-500 text-white px-3 py-1 rounded-full text-xs font-bold border-2 border-white dark:border-slate-800 shadow-md whitespace-nowrap">
+                                    <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-gradient-to-br from-orange-400 to-orange-500 text-white px-2.5 py-0.5 rounded-full text-[11px] font-bold border-2 border-white dark:border-slate-800 shadow-md whitespace-nowrap">
                                         #3 Place
                                     </div>
                                 </div>
                                 <div class="text-center">
-                                    <h3 class="text-lg font-bold text-slate-900 dark:text-white">@(thirdPlace.IsCurrentUser ? "You" : thirdPlace.FullName)</h3>
+                                    <h3 class="text-base font-bold text-slate-900 dark:text-white">@thirdPlace.FullName @(thirdPlace.IsCurrentUser ? "(You)" : "")</h3>
+                                    @if (thirdPlace.Badges.Any())
+                                    {
+                                        <div class="flex flex-wrap justify-center gap-1 mt-1">
+                                            @foreach (var b in thirdPlace.Badges)
+                                            {
+                                                <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold @b.Color" dir="ltr" title="@BadgeTierUi.TooltipTitle(b.Name, b.TierLevel)">
+                                                    @Html.Raw(BadgeIcon(b.Icon, "text-sm"))
+                                                    @await Html.PartialAsync("_BadgeTierMark", new BadgeTierMarkViewModel(b.TierLevel, b.CategoryId))
+                                                </span>
+                                            }
+                                        </div>
+                                    }
                                 </div>
-                                <div class="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 border border-orange-200 dark:border-orange-700 rounded-lg px-4 py-2 w-full text-center shadow-sm">
-                                    <span class="text-2xl font-black text-orange-700 dark:text-orange-300 block transition-all duration-500 ease-out" data-hours="@thirdHours" data-minutes="@thirdMins">@(thirdHours)h @(thirdMins)m</span>
-                                    <span class="text-xs text-orange-600 dark:text-orange-400 uppercase tracking-wider font-semibold">Studied</span>
+                                <div class="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 border border-orange-200 dark:border-orange-700 rounded-lg px-3 py-1.5 w-full text-center shadow-sm">
+                                    <span class="text-xl font-black text-orange-700 dark:text-orange-300 block transition-all duration-500 ease-out" data-hours="@thirdHours" data-minutes="@thirdMins">@(thirdHours)h @(thirdMins)m</span>
+                                    <span class="text-[11px] text-orange-600 dark:text-orange-400 uppercase tracking-wider font-semibold">STUDY TIME</span>
                                 </div>
                             </div>
                         </div>
@@ -542,46 +748,110 @@
     
     <!-- Weekly Leaderboard Table -->
     <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-100 dark:border-slate-700 overflow-hidden relative">
-        <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+        <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 dark:border-slate-700 flex flex-wrap items-start sm:items-center justify-between gap-3">
             <div>
-                <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-1">Weekly Leaderboard</h3>
-                <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                    <span class="material-symbols-outlined text-sm">calendar_today</span>
-                    <span class="text-xs font-medium">@weekStart.ToString("MMM dd") - @weekEnd.ToString("MMM dd, yyyy")</span>
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-0.5">Weekly Leaderboard</h3>
+                <div class="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                    <span class="material-symbols-outlined text-[14px]">calendar_today</span>
+                    <span class="text-xs font-medium">@weekStart.ToString("MMM dd") – @weekEnd.ToString("MMM dd, yyyy")</span>
                 </div>
             </div>
-            <div class="flex gap-3">
-                <div class="flex flex-col px-5 py-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Your Rank</span>
-                    <div class="flex items-baseline gap-1">
-                        <span class="text-xl font-bold text-slate-900 dark:text-white">#@(currentUserRank > 0 ? currentUserRank.ToString() : "-")</span>
-                    </div>
+            <div class="flex flex-wrap gap-2 items-center">
+                <div class="flex items-center gap-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                    <span class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Your Rank</span>
+                    <span class="text-base font-bold text-slate-900 dark:text-white">#@(currentUserRank > 0 ? currentUserRank.ToString() : "–")</span>
                 </div>
-                <div class="flex flex-col px-5 py-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Study Time</span>
-                    <span id="currentUserHours" class="text-xl font-bold text-primary transition-all duration-500 ease-out" data-hours="@((int)currentUserHours)" data-minutes="@((int)((currentUserHours - (int)currentUserHours) * 60))">
-                        @if (currentUserHours > 0) 
-                        { 
-                            var userHours = (int)currentUserHours; 
-                            var userMins = (int)((currentUserHours - userHours) * 60); 
-                            <text>@(userHours)h @(userMins)m</text> 
-                        } 
-                        else 
-                        { 
-                            <text>0h</text> 
-                        }
-                    </span>
-                </div>
+                <a asp-action="WeeklyHistory"
+                   class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-semibold shadow-sm shadow-primary/20 transition-colors active:scale-95">
+                    <span class="material-symbols-outlined text-[16px]">history</span>
+                    <span>History</span>
+                </a>
+                <span id="currentUserHours" class="hidden" data-hours="@((int)currentUserHours)" data-minutes="@((int)((currentUserHours - (int)currentUserHours) * 60))"></span>
             </div>
         </div>
-        <div class="overflow-x-auto">
+
+        @* Mobile card list (shown below sm) *@
+        @if (weeklyLeaderboard.Any())
+        {
+            <div class="sm:hidden divide-y divide-slate-100 dark:divide-slate-700/50">
+                @foreach (var entry in weeklyLeaderboard)
+                {
+                    var eH = (int)entry.TotalHours;
+                    var eM = (int)((entry.TotalHours - eH) * 60);
+                    <div class="px-4 py-3 flex items-center gap-3 @(entry.IsCurrentUser ? "bg-primary/5" : "")">
+                        <!-- Rank badge -->
+                        <div class="shrink-0 flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold
+                            @(entry.Rank == 1 ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400" :
+                              entry.Rank == 2 ? "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" :
+                              entry.Rank == 3 ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" :
+                              entry.IsCurrentUser ? "text-primary" : "text-slate-400")">
+                            @entry.Rank
+                        </div>
+                        <!-- Avatar -->
+                        <div class="shrink-0 w-9 h-9 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden @(entry.IsCurrentUser ? "ring-2 ring-primary" : "") user-avatar"
+                             data-user-id="@entry.UserId">
+                            @if (!string.IsNullOrEmpty(entry.ProfilePictureUrl))
+                            {
+                                <img src="@entry.ProfilePictureUrl" alt="@entry.FullName" class="w-full h-full object-cover"
+                                     onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                <div class="w-full h-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-xs" style="display: none;">
+                                    @entry.FullName.Substring(0, 1).ToUpper()
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="w-full h-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-xs">
+                                    @entry.FullName.Substring(0, 1).ToUpper()
+                                </div>
+                            }
+                        </div>
+                        <!-- Name + badges -->
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                                @(entry.IsCurrentUser ? entry.FullName + " (You)" : entry.FullName)
+                            </p>
+                            @if (entry.Badges.Any())
+                            {
+                                <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                                    @foreach (var badge in entry.Badges)
+                                    {
+                                        <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold @badge.Color" dir="ltr" title="@BadgeTierUi.TooltipTitle(badge.Name, badge.TierLevel)">
+                                            @Html.Raw(BadgeIcon(badge.Icon, "text-xs shrink-0 leading-none"))
+                                            @await Html.PartialAsync("_BadgeTierMark", new BadgeTierMarkViewModel(badge.TierLevel, badge.CategoryId))
+                                        </span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        <!-- Study time + sessions -->
+                        <div class="shrink-0 text-right">
+                            <p class="text-sm font-black @(entry.Rank == 1 ? "text-primary" : "text-slate-900 dark:text-white")" data-hours="@eH" data-minutes="@eM">@(eH)h @(eM)m</p>
+                            <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">@entry.SessionsCount session@(entry.SessionsCount == 1 ? "" : "s")</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="sm:hidden px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">No data yet.</div>
+        }
+
+        @* Desktop table (hidden on mobile) *@
+        <div class="hidden sm:block overflow-x-auto">
             <table class="w-full text-left border-collapse">
+                <colgroup>
+                    <col class="w-16" />
+                    <col />
+                    <col class="w-[7.5rem]" />
+                    <col class="w-24" />
+                </colgroup>
                 <thead>
                     <tr class="border-b border-slate-100 dark:border-slate-700">
-                        <th class="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400 w-20">Rank</th>
-                        <th class="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Student</th>
-                        <th class="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400 text-right">Total Hours</th>
-                        <th class="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400 text-right">Sessions</th>
+                        <th class="bg-white/95 dark:bg-slate-800/95 py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400">Rank</th>
+                        <th class="bg-white/95 dark:bg-slate-800/95 py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400 min-w-0">Student</th>
+                        <th class="bg-white/95 dark:bg-slate-800/95 py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400 text-right whitespace-nowrap">Total Hours</th>
+                        <th class="bg-white/95 dark:bg-slate-800/95 py-4 px-6 text-xs font-semibold uppercase tracking-wider text-slate-400 text-right whitespace-nowrap">Sessions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-50 dark:divide-slate-700/50">
@@ -589,7 +859,7 @@
                     {
                         @foreach (var entry in weeklyLeaderboard)
                         {
-                            <tr class="group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors @(entry.IsCurrentUser ? "bg-primary/5" : "")">
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors @(entry.IsCurrentUser ? "bg-primary/5" : "")">
                                 <td class="py-4 px-6">
                                     @if (entry.Rank <= 3)
                                     {
@@ -604,12 +874,13 @@
                                         </span>
                                     }
                                 </td>
-                                <td class="py-4 px-6">
-                                    <div class="flex items-center gap-4">
-                                        <div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden @(entry.IsCurrentUser ? "ring-2 ring-primary" : "")">
+                                <td class="py-4 px-6 min-w-0 align-top">
+                                    <div class="flex items-start gap-4 min-w-0">
+                                        <div class="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden shrink-0 @(entry.IsCurrentUser ? "ring-2 ring-primary" : "") user-avatar"
+                                             data-user-id="@entry.UserId">
                                             @if (!string.IsNullOrEmpty(entry.ProfilePictureUrl))
                                             {
-                                                <img src="@entry.ProfilePictureUrl" alt="@entry.FullName" class="w-full h-full object-cover" 
+                                                <img src="@entry.ProfilePictureUrl" alt="@entry.FullName" class="w-full h-full object-cover"
                                                      onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
                                                 <div class="w-full h-full flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-sm" style="display: none;">
                                                     @entry.FullName.Substring(0, 1).ToUpper()
@@ -622,19 +893,48 @@
                                                 </div>
                                             }
                                         </div>
-                                        <div class="flex flex-col">
+                                        <div class="flex flex-col gap-1 min-w-0 flex-1">
                                             <span class="font-medium text-slate-900 dark:text-white @(entry.IsCurrentUser ? "font-bold" : "")">
-                                                @(entry.IsCurrentUser ? "You" : entry.FullName)
+                                                @entry.FullName @(entry.IsCurrentUser ? "(You)" : "")
                                             </span>
+                                            @if (entry.Badges.Any())
+                                            {
+                                                <div class="flex flex-wrap gap-1 content-start">
+                                                    @foreach (var badge in entry.Badges)
+                                                    {
+                                                        <span class="relative inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold @badge.Color group" dir="ltr">
+                                                            @Html.Raw(BadgeIcon(badge.Icon, "text-sm shrink-0 leading-none"))
+                                                            @badge.Name
+                                                            @await Html.PartialAsync("_BadgeTierMark", new BadgeTierMarkViewModel(badge.TierLevel, badge.CategoryId))
+                                                            <div class="pointer-events-none absolute left-1/2 -translate-x-1/2 -top-2 -translate-y-full opacity-0 group-hover:opacity-100 group-hover:-translate-y-3 transition-all duration-150 z-20">
+                                                                <div class="rounded-2xl bg-slate-900/95 text-white shadow-2xl px-3 py-2 border border-slate-700 max-w-xs">
+                                                                    <div class="flex items-start gap-2">
+                                                                        <div class="shrink-0">@Html.Raw(BadgeIcon(badge.Icon, "text-[24px]"))</div>
+                                                                        <div class="min-w-0">
+                                                                            <p class="text-[13px] font-semibold leading-snug truncate">@badge.Name</p>
+                                                                            @if (badge.TierLevel is int btl2)
+                                                                            {
+                                                                                <p class="text-[10px] font-mono text-amber-200/95 mt-0.5">Tier @BadgeTierUi.ToRoman(btl2)</p>
+                                                                            }
+                                                                            @if (!string.IsNullOrWhiteSpace(badge.Description)) { <p class="text-[11px] text-slate-200 leading-snug mt-0.5">@badge.Description</p> }
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </span>
+                                                    }
+                                                </div>
+                                            }
                                         </div>
                                     </div>
                                 </td>
-                                <td class="py-4 px-6 text-right">
-                                    <span class="font-bold @(entry.Rank == 1 ? "text-primary" : "text-slate-900 dark:text-white") text-lg transition-all duration-500 ease-out" data-hours="@((int)entry.TotalHours)" data-minutes="@((int)((entry.TotalHours - (int)entry.TotalHours) * 60))">
-                                        @{var entryHours = (int)entry.TotalHours; var entryMins = (int)((entry.TotalHours - entryHours) * 60);}@(entryHours)h @(entryMins)m
+                                <td class="py-4 px-6 text-right align-top whitespace-nowrap">
+                                    @{var entryHours = (int)entry.TotalHours; var entryMins = (int)((entry.TotalHours - entryHours) * 60);}
+                                    <span class="font-bold @(entry.Rank == 1 ? "text-primary" : "text-slate-900 dark:text-white") text-lg transition-all duration-500 ease-out" data-hours="@entryHours" data-minutes="@entryMins">
+                                        @(entryHours)h @(entryMins)m
                                     </span>
                                 </td>
-                                <td class="py-4 px-6 text-right">
+                                <td class="py-4 px-6 text-right align-top whitespace-nowrap">
                                     <span class="text-slate-600 dark:text-slate-300 font-medium">@entry.SessionsCount</span>
                                 </td>
                             </tr>
@@ -652,12 +952,13 @@
             </table>
         </div>
     </div>
+
 </main>
 
 @section Scripts {
     <script>
         function toggleDashboardPanel(panelId) {
-            const panels = ["logSessionPanel", "setupTargetPanel"];
+            const panels = ["logSessionPanel"];
             panels.forEach(id => {
                 const el = document.getElementById(id);
                 if (!el) return;
@@ -782,12 +1083,18 @@
                 minutesInput.value = '0';
             }
             
-            // Validate that at least one field has a value > 0
+            // Validate minimum duration (10 minutes)
             const hours = parseInt(hoursInput.value) || 0;
             const minutes = parseInt(minutesInput.value) || 0;
+            const totalMinutes = hours * 60 + minutes;
             
-            if (hours === 0 && minutes === 0) {
-                showNotification('Please enter a duration (hours or minutes must be greater than 0).', 'warning');
+            if (totalMinutes < 10) {
+                showNotification('Session duration must be at least 10 minutes.', 'warning');
+                hoursInput.focus();
+                return;
+            }
+            if (totalMinutes > 16 * 60) {
+                showNotification('Session duration cannot exceed 16 hours.', 'warning');
                 hoursInput.focus();
                 return;
             }
@@ -826,9 +1133,21 @@
                             
                             // Show success message
                             showNotification('Session added successfully!', 'success');
+
+                            // Show badge notifications if any were earned
+                            if (result.newBadges && result.newBadges.length > 0) {
+                                setTimeout(() => {
+                                    result.newBadges.forEach((badge, i) => {
+                                        setTimeout(() => {
+                                            showBadgeNotification(badge.name, badge.icon);
+                                        }, i * 1800);
+                                    });
+                                }, 1200);
+                            }
                             
                             // Update dashboard data without reload
                             await updateDashboardData();
+                            if (window.refreshNotificationBadge) window.refreshNotificationBadge();
                             
                             submitButton.disabled = false;
                             submitButton.textContent = originalButtonText;
@@ -864,6 +1183,7 @@
                             document.getElementById('minutesInput').value = '0';
                             showNotification('Session added successfully!', 'success');
                             await updateDashboardData();
+                            if (window.refreshNotificationBadge) window.refreshNotificationBadge();
                             submitButton.disabled = false;
                             submitButton.textContent = originalButtonText;
                         }
@@ -922,10 +1242,6 @@
                     return;
                 }
                 
-                // Update target progress
-                if (data.targetProgress) {
-                    updateTargetProgress(data.targetProgress);
-                }
                 
                 // Update leaderboards
                 if (data.dailyLeaderboard && data.dailyLeaderboard.length > 0) {
@@ -1140,6 +1456,206 @@
             update();
         }
         
+        // ── Todo List ──────────────────────────────────────────────
+        function todoGetToken() {
+            const input = document.querySelector('#todoAntiforgery input[name="__RequestVerificationToken"]');
+            return input ? input.value : '';
+        }
+
+        async function todoFetch(url, body) {
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': todoGetToken()
+                },
+                body: JSON.stringify(body)
+            });
+            if (!resp.ok) throw new Error('Request failed');
+            return resp.json();
+        }
+
+        function todoRender(items) {
+            const list = document.getElementById('todoList');
+            const empty = document.getElementById('todoEmpty');
+            const count = document.getElementById('todoCount');
+            const clearBtn = document.getElementById('todoClearBtn');
+            list.innerHTML = '';
+
+            if (!items || items.length === 0) {
+                empty.classList.remove('hidden');
+                empty.classList.add('flex');
+                count.textContent = '';
+                clearBtn.classList.remove('inline-flex');
+                clearBtn.classList.add('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+            empty.classList.remove('flex');
+            clearBtn.classList.remove('hidden');
+            clearBtn.classList.add('inline-flex');
+            const done = items.filter(i => i.isCompleted).length;
+            count.textContent = done + ' / ' + items.length + ' done';
+
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.id = 'todo-' + item.id;
+                li.dataset.id = item.id;
+                li.draggable = true;
+                li.className = 'flex items-center gap-3 rounded-xl px-3 py-2.5 border border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 group transition-colors hover:bg-slate-100 dark:hover:bg-slate-800';
+
+                const createdAt = item.createdAt ? new Date(item.createdAt) : null;
+                let ageLabel = '';
+                if (createdAt) {
+                    const today = new Date();
+                    const createdDay = new Date(createdAt.getFullYear(), createdAt.getMonth(), createdAt.getDate());
+                    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+                    const diffMs = todayDay - createdDay;
+                    const diffDays = Math.floor(diffMs / 86400000);
+                    if (diffDays <= 0) ageLabel = 'Today';
+                    else if (diffDays === 1) ageLabel = 'Yesterday';
+                    else ageLabel = diffDays + ' days ago';
+                }
+
+                const isOverdue = item.date
+                    ? (new Date(item.date) < new Date(new Date().toISOString().substring(0, 10)) && !item.isCompleted)
+                    : false;
+
+                li.innerHTML = `
+                    <button onclick="todoToggle('${item.id}')"
+                            class="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+                                   ${item.isCompleted
+                                       ? 'border-primary bg-primary text-white'
+                                       : 'border-slate-300 dark:border-slate-600 hover:border-primary'}">
+                        ${item.isCompleted ? '<span class="material-symbols-outlined text-[14px]">check</span>' : ''}
+                    </button>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm ${item.isCompleted ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-200'} truncate">${escapeHtml(item.title)}</p>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            ${ageLabel ? `<span class="text-[11px] text-slate-400 dark:text-slate-500">${ageLabel}</span>` : ''}
+                            ${isOverdue ? `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-900/30 text-[10px] font-semibold text-red-600 dark:text-red-400">
+                                <span class="material-symbols-outlined text-[12px]">warning</span>
+                                <span>Overdue</span>
+                            </span>` : ''}
+                        </div>
+                    </div>
+                    <button onclick="todoDelete('${item.id}')"
+                            class="shrink-0 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all">
+                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                    <span class="material-symbols-outlined text-[16px] text-slate-300 dark:text-slate-600 cursor-grab select-none drag-handle opacity-0 group-hover:opacity-100">drag_indicator</span>
+                `;
+                list.appendChild(li);
+            });
+
+            enableTodoDrag(list);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        async function todoLoad() {
+            try {
+                const items = await fetch('/Todo/Today').then(r => r.json());
+                todoRender(items);
+            } catch (e) { console.error('Todo load error', e); }
+        }
+
+        async function todoAdd() {
+            const input = document.getElementById('todoInput');
+            const title = input.value.trim();
+            if (!title) { input.focus(); return; }
+
+            const btn = document.getElementById('todoAddBtn');
+            btn.disabled = true;
+
+            try {
+                const item = await todoFetch('/Todo/Add', { title });
+                input.value = '';
+                input.focus();
+                // Re-load to keep ordering correct
+                await todoLoad();
+            } catch (e) {
+                showNotification('Could not add task. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function todoToggle(id) {
+            try {
+                await todoFetch('/Todo/Toggle', { id });
+                await todoLoad();
+            } catch (e) {
+                showNotification('Could not update task.', 'error');
+            }
+        }
+
+        async function todoClearAll() {
+            const confirmed = await showConfirm('This will permanently delete all of your tasks. This cannot be undone.', 'Clear all tasks?');
+            if (!confirmed) return;
+            try {
+                await todoFetch('/Todo/ClearAll', {});
+                await todoLoad();
+            } catch (e) {
+                showNotification('Could not clear tasks. Please try again.', 'error');
+            }
+        }
+
+        async function todoDelete(id) {
+            try {
+                await todoFetch('/Todo/Delete', { id });
+                const li = document.getElementById('todo-' + id);
+                if (li) li.remove();
+                await todoLoad();
+            } catch (e) {
+                showNotification('Could not delete task.', 'error');
+            }
+        }
+
+        function enableTodoDrag(list) {
+            let dragged = null;
+
+            list.querySelectorAll('li').forEach(li => {
+                li.addEventListener('dragstart', e => {
+                    dragged = li;
+                    li.classList.add('opacity-50');
+                });
+                li.addEventListener('dragend', () => {
+                    if (dragged) dragged.classList.remove('opacity-50');
+                    const order = Array.from(list.querySelectorAll('li')).map(x => x.dataset.id);
+                    dragged = null;
+                    if (order.length) {
+                        todoFetch('/Todo/Reorder', { order }).catch(() => {
+                            console.error('Failed to persist todo order');
+                        });
+                    }
+                });
+                li.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    if (!dragged || dragged === li) return;
+                    const rect = li.getBoundingClientRect();
+                    const before = (e.clientY - rect.top) < (rect.height / 2);
+                    if (before) {
+                        list.insertBefore(dragged, li);
+                    } else {
+                        list.insertBefore(dragged, li.nextSibling);
+                    }
+                });
+            });
+        }
+
+        // Allow pressing Enter in the input to add
+        document.getElementById('todoInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); todoAdd(); }
+        });
+
+        // Load todos on page load
+        todoLoad();
+        // ── End Todo List ──────────────────────────────────────────
+
         // Smooth number animation on page load
         document.addEventListener('DOMContentLoaded', function() {
             // Add fade-in and scale animation to numbers
@@ -1171,5 +1687,493 @@
                 streakCircle.style.transition = 'stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)';
             }
         });
+
+        // ── Focus Session Timer (Web Worker + timestamp-based + background audio) ──
+        (function () {
+            const _uid = '@Html.Raw(currentUserId)';
+            const STORAGE_KEY = 'focusSessionState' + (_uid ? '_' + _uid : '');
+            let state = null;
+            let worker = null;
+
+            const focusHoursInput = document.getElementById('focusHoursInput');
+            const focusMinutesInput = document.getElementById('focusMinutesInput');
+            const breakHoursInput = document.getElementById('breakHoursInput');
+            const breakMinutesInput = document.getElementById('breakMinutesInput');
+            const notesInput = document.getElementById('focusNotesInput');
+            const notesError = document.getElementById('focusNotesError');
+            const finishedBanner = document.getElementById('focusFinishedBanner');
+            const startBtn = document.getElementById('focusStartBtn');
+            const pauseBtn = document.getElementById('focusPauseBtn');
+            const resumeBtn = document.getElementById('focusResumeBtn');
+            const endBtn = document.getElementById('focusEndBtn');
+            const modeLabel = document.getElementById('focusSessionModeLabel');
+            const timeLabel = document.getElementById('focusSessionTimeLabel');
+            const statusPill = document.getElementById('focusSessionStatusPill');
+            const studyCircle = document.getElementById('focusStudyCircle');
+            const breakCircle = document.getElementById('focusBreakCircle');
+
+            let _audioCtx = null;
+            let _masterGain = null;
+
+            // Audio buffers cache: decoded once, reused on every play
+            const _audioBuffers = {};
+
+            // ── Volume control ──────────────────────────────────────────
+            const VOLUME_KEY = 'studytracker-alarm-volume';
+            let _currentVolume = Math.min(100, Math.max(0, parseInt(localStorage.getItem(VOLUME_KEY) ?? '80')));
+            let _prevVolume = _currentVolume > 0 ? _currentVolume : 80;
+
+            function getAudioCtx() {
+                try {
+                    if (!_audioCtx) {
+                        _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        _masterGain = _audioCtx.createGain();
+                        _masterGain.gain.value = _currentVolume / 100;
+                        _masterGain.connect(_audioCtx.destination);
+                    }
+                    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+                    return _audioCtx;
+                } catch (_) { return null; }
+            }
+
+            function getMasterGain() {
+                getAudioCtx();
+                return _masterGain;
+            }
+
+            // ── Volume slider init ──────────────────────────────────────
+            (function initVolumeSlider() {
+                const slider = document.getElementById('alarmVolumeSlider');
+                const label  = document.getElementById('volumeLabel');
+                const icon   = document.getElementById('volumeIcon');
+                const btn    = document.getElementById('volumeToggleBtn');
+                if (!slider || !label || !icon) return;
+
+                function updateUI(vol) {
+                    slider.value = vol;
+                    label.textContent = vol + '%';
+                    icon.textContent = vol === 0 ? 'volume_off' : vol < 50 ? 'volume_down' : 'volume_up';
+                    if (_masterGain) _masterGain.gain.value = vol / 100;
+                }
+
+                updateUI(_currentVolume);
+
+                slider.addEventListener('input', () => {
+                    _currentVolume = parseInt(slider.value);
+                    if (_currentVolume > 0) _prevVolume = _currentVolume;
+                    localStorage.setItem(VOLUME_KEY, _currentVolume);
+                    updateUI(_currentVolume);
+                });
+
+                if (btn) {
+                    btn.addEventListener('click', () => {
+                        if (_currentVolume > 0) {
+                            _prevVolume = _currentVolume;
+                            _currentVolume = 0;
+                        } else {
+                            _currentVolume = _prevVolume || 80;
+                        }
+                        localStorage.setItem(VOLUME_KEY, _currentVolume);
+                        updateUI(_currentVolume);
+                    });
+                }
+            })();
+
+            async function loadAudioBuffer(url) {
+                if (_audioBuffers[url]) return _audioBuffers[url];
+                const ctx = getAudioCtx();
+                if (!ctx) return null;
+                try {
+                    const resp = await fetch(url);
+                    if (!resp.ok) return null;
+                    const arrayBuf = await resp.arrayBuffer();
+                    const decoded = await ctx.decodeAudioData(arrayBuf);
+                    _audioBuffers[url] = decoded;
+                    return decoded;
+                } catch (_) { return null; }
+            }
+
+            // Pre-load both files as soon as possible (after first user interaction)
+            function preloadSounds() {
+                loadAudioBuffer('/alarm.mp3');
+                loadAudioBuffer('/break.mp3');
+            }
+
+            function beep(ctx, freq, startAt, dur, vol) {
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                const dest = getMasterGain() || ctx.destination;
+                osc.connect(g); g.connect(dest);
+                osc.type = 'sine'; osc.frequency.value = freq;
+                g.gain.setValueAtTime(0, ctx.currentTime + startAt);
+                g.gain.linearRampToValueAtTime(vol, ctx.currentTime + startAt + 0.03);
+                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startAt + dur);
+                osc.start(ctx.currentTime + startAt);
+                osc.stop(ctx.currentTime + startAt + dur + 0.05);
+            }
+
+            async function playSound(type) {
+                if (_currentVolume === 0) return; // muted
+                const url = type === 'break' ? '/break.mp3' : '/alarm.mp3';
+                const ctx = getAudioCtx();
+
+                // Try to play the real audio file via AudioContext (works in background tabs)
+                if (ctx) {
+                    try {
+                        const buffer = await loadAudioBuffer(url);
+                        if (buffer) {
+                            if (ctx.state === 'suspended') await ctx.resume();
+                            const src = ctx.createBufferSource();
+                            src.buffer = buffer;
+                            const dest = getMasterGain() || ctx.destination;
+                            src.connect(dest);
+                            src.start(0);
+                            return;
+                        }
+                    } catch (_) {}
+
+                    // Fallback: synthesized beep if file failed to load
+                    try {
+                        if (type === 'break') { beep(ctx, 520, 0, 0.25, 0.3); beep(ctx, 660, 0.3, 0.25, 0.3); }
+                        else { beep(ctx, 440, 0, 0.3, 0.3); beep(ctx, 660, 0.35, 0.3, 0.3); beep(ctx, 880, 0.7, 0.4, 0.35); }
+                        return;
+                    } catch (_) {}
+                }
+
+                // Last resort: HTML Audio element
+                try {
+                    const a = new Audio(url);
+                    a.volume = _currentVolume / 100;
+                    a.play().catch(() => {});
+                } catch (_) {}
+
+                try {
+                    if (Notification.permission === 'granted') {
+                        new Notification('StudyTracker', { body: type === 'break' ? 'Time for a break!' : 'Focus session finished!', icon: '/trophy.svg' });
+                    }
+                } catch (_) {}
+            }
+
+            function requestNotifPermission() {
+                try { if (Notification.permission === 'default') Notification.requestPermission(); } catch (_) {}
+            }
+
+            document.addEventListener('visibilitychange', function () {
+                if (document.hidden) return;
+                if (state && state.pendingSound) {
+                    playSound(state.pendingSound);
+                    state.pendingSound = null;
+                    saveState();
+                }
+                if (finishedBanner && state && state.showFinishedBanner) {
+                    finishedBanner.style.display = 'flex';
+                    state.showFinishedBanner = false;
+                    saveState();
+                }
+            });
+
+            function loadState() {
+                try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
+            }
+            function saveState() {
+                if (!state) { localStorage.removeItem(STORAGE_KEY); return; }
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            }
+            function fmtTime(sec) {
+                const s = Math.max(0, Math.floor(sec));
+                return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+            }
+
+            function recalcRemaining() {
+                if (!state || !state.isRunning) return;
+                const elapsed = (Date.now() - state.lastTickMs) / 1000;
+                if (state.mode === 'focus') {
+                    state.focusRemainingSeconds = Math.max(0, (state._savedFocusRemaining || state.focusRemainingSeconds) - elapsed);
+                    if (state.focusRemainingSeconds <= 0) {
+                        state.focusRemainingSeconds = 0;
+                        if (state.breakTotalSeconds > 0 && state.breakRemainingSeconds > 0) {
+                            state.mode = 'break';
+                            state._savedFocusRemaining = 0;
+                            state._savedBreakRemaining = state.breakRemainingSeconds;
+                            state.lastTickMs = Date.now();
+                            state.endTimeMs = Date.now() + state.breakRemainingSeconds * 1000;
+                            playSound('break');
+                        } else {
+                            state.isRunning = false;
+                            playSound('finish');
+                            saveState(); updateStatusUi();
+                            finishAndLog(true, true);
+                            return;
+                        }
+                    }
+                } else if (state.mode === 'break') {
+                    state.breakRemainingSeconds = Math.max(0, (state._savedBreakRemaining || state.breakRemainingSeconds) - elapsed);
+                    if (state.breakRemainingSeconds <= 0) {
+                        state.breakRemainingSeconds = 0;
+                        state.isRunning = false;
+                        playSound('finish');
+                        saveState(); updateStatusUi();
+                        finishAndLog(true, true);
+                        return;
+                    }
+                }
+            }
+
+            // Show/hide buttons via style.display directly — more reliable than
+            // toggling the 'hidden' Tailwind class, which can be overridden by
+            // other display utilities (e.g. inline-flex) depending on CSS order.
+            function showBtn(btn) { if (btn) btn.style.display = ''; }
+            function hideBtn(btn) { if (btn) btn.style.display = 'none'; }
+
+            function updateStatusUi() {
+                if (!state || state.mode === 'idle') {
+                    statusPill.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span><span>Idle</span>';
+                    if (modeLabel) modeLabel.textContent = 'Not started';
+                    timeLabel.textContent = '00:00';
+                    if (studyCircle) { studyCircle.style.transition='none'; studyCircle.style.strokeDasharray='0 100'; studyCircle.style.strokeDashoffset='0'; }
+                    if (breakCircle) { breakCircle.style.transition='none'; breakCircle.style.strokeDasharray='0 100'; breakCircle.style.strokeDashoffset='0'; }
+                    showBtn(startBtn); hideBtn(pauseBtn); hideBtn(resumeBtn); hideBtn(endBtn);
+                    if (notesInput) notesInput.disabled = false;
+                    if (focusHoursInput) focusHoursInput.disabled = false;
+                    if (focusMinutesInput) focusMinutesInput.disabled = false;
+                    if (breakHoursInput) breakHoursInput.disabled = false;
+                    if (breakMinutesInput) breakMinutesInput.disabled = false;
+                    return;
+                }
+                const isRunning = state.isRunning;
+                const inFocus = state.mode === 'focus';
+                const rF = state.focusRemainingSeconds || 0;
+                const rB = state.breakRemainingSeconds || 0;
+                const fT = state.focusTotalSeconds || 0;
+                const bT = state.breakTotalSeconds || 0;
+                const tS = fT + bT;
+
+                statusPill.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-emerald-500' : 'bg-amber-500'}"></span><span>${inFocus ? 'Focusing' : 'On break'}${!isRunning ? ' (paused)' : ''}</span>`;
+                if (modeLabel) modeLabel.textContent = inFocus ? 'Focusing' : 'On break';
+                timeLabel.textContent = fmtTime(rF + rB);
+
+                if (studyCircle && fT > 0) {
+                    const rU = rF / tS * 100; const eU = ((fT - rF) + (bT - rB)) / tS * 100;
+                    studyCircle.style.transition = 'stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1)';
+                    studyCircle.style.strokeDasharray = `${rU} ${100 - rU}`;
+                    studyCircle.style.strokeDashoffset = String(-eU);
+                }
+                if (breakCircle) {
+                    const rU = bT > 0 ? rB / tS * 100 : 0;
+                    breakCircle.style.transition = 'stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1)';
+                    breakCircle.style.strokeDasharray = `${rU} ${100 - rU}`;
+                    breakCircle.style.strokeDashoffset = String(rU - 100);
+                }
+                hideBtn(startBtn); showBtn(endBtn);
+                if (isRunning) { showBtn(pauseBtn); hideBtn(resumeBtn); }
+                else { hideBtn(pauseBtn); showBtn(resumeBtn); }
+                if (notesInput) notesInput.disabled = true;
+                if (focusHoursInput) focusHoursInput.disabled = true;
+                if (focusMinutesInput) focusMinutesInput.disabled = true;
+                if (breakHoursInput) breakHoursInput.disabled = true;
+                if (breakMinutesInput) breakMinutesInput.disabled = true;
+            }
+
+            function onWorkerMsg(e) {
+                if (!state || !state.isRunning) return;
+                if (e.data.type === 'tick') {
+                    recalcRemaining();
+                    saveState();
+                    updateStatusUi();
+                } else if (e.data.type === 'done') {
+                    recalcRemaining();
+                }
+            }
+
+            function startWorker(durationMs) {
+                if (worker) worker.terminate();
+                try {
+                    worker = new Worker('/js/timer-worker.js');
+                    worker.onmessage = onWorkerMsg;
+                    worker.postMessage({ cmd: 'start', durationMs });
+                } catch (_) {
+                    // Fallback: setInterval if Worker fails
+                    worker = null;
+                    setInterval(() => { if (state && state.isRunning) { recalcRemaining(); saveState(); updateStatusUi(); } }, 1000);
+                }
+            }
+
+            function startNewSession() {
+                const notes = (notesInput ? notesInput.value : '').trim();
+                if (!notes) {
+                    if (notesError) notesError.style.display = 'flex';
+                    if (notesInput) notesInput.focus();
+                    return;
+                }
+                if (notesError) notesError.style.display = 'none';
+                if (finishedBanner) finishedBanner.style.display = 'none';
+
+                getAudioCtx();
+                preloadSounds();
+                requestNotifPermission();
+
+                const fH = parseInt(focusHoursInput.value) || 0;
+                const fM = parseInt(focusMinutesInput.value) || 0;
+                const bH = parseInt(breakHoursInput.value) || 0;
+                const bM = parseInt(breakMinutesInput.value) || 0;
+                if (fH < 0 || fM < 0 || bH < 0 || bM < 0) { showNotification('Time values cannot be negative.', 'warning'); return; }
+                const focMin = fH * 60 + fM; const brkMin = bH * 60 + bM;
+                if (focMin < 10) { showNotification('Focus time must be at least 10 minutes.', 'warning'); return; }
+                if (brkMin > focMin * 0.3) { showNotification('Break time cannot exceed 30% of focus time.', 'warning'); return; }
+                const fS = focMin * 60; const bS = brkMin * 60;
+
+                state = { isRunning: true, started: true, mode: 'focus', notes: notes,
+                    timerRunId: (crypto.randomUUID && crypto.randomUUID()) || (Date.now().toString(36) + Math.random().toString(36).slice(2)),
+                    focusTotalSeconds: fS, breakTotalSeconds: bS,
+                    focusRemainingSeconds: fS, breakRemainingSeconds: bS,
+                    _savedFocusRemaining: fS, _savedBreakRemaining: bS,
+                    lastTickMs: Date.now(),
+                    endTimeMs: Date.now() + (fS + bS) * 1000 };
+                saveState();
+                startWorker((fS + bS) * 1000);
+                updateStatusUi();
+                showNotification('Focus session started. Stay focused!', 'info');
+            }
+
+            function pauseSession() {
+                if (!state) return;
+                recalcRemaining();
+                state.isRunning = false;
+                state._savedFocusRemaining = state.focusRemainingSeconds;
+                state._savedBreakRemaining = state.breakRemainingSeconds;
+                if (worker) worker.postMessage({ cmd: 'pause' });
+                saveState(); updateStatusUi();
+            }
+
+            function resumeSession() {
+                if (!state) return;
+                state.isRunning = true; state.lastTickMs = Date.now();
+                state._savedFocusRemaining = state.focusRemainingSeconds;
+                state._savedBreakRemaining = state.breakRemainingSeconds;
+                state.endTimeMs = Date.now() + (state.focusRemainingSeconds + state.breakRemainingSeconds) * 1000;
+                saveState();
+                const rem = (state.focusRemainingSeconds + state.breakRemainingSeconds) * 1000;
+                if (worker) worker.postMessage({ cmd: 'resume' });
+                else startWorker(rem);
+                updateStatusUi();
+            }
+
+            function getDashboardAntiforgeryToken() {
+                const input = document.querySelector('#dashboardSessionForm input[name="__RequestVerificationToken"]');
+                return input ? input.value : '';
+            }
+
+            let focusLogInFlight = false;
+            function cairoOrLocalYmd() {
+                if (typeof window.__studyTrackerCairoToday === 'string' && window.__studyTrackerCairoToday.length >= 10)
+                    return window.__studyTrackerCairoToday;
+                const d = new Date();
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                return `${y}-${m}-${day}`;
+            }
+            async function logFocusSession(totalMinutes, breakMinutes, notes, timerRunId) {
+                if (focusLogInFlight) return false;
+                focusLogInFlight = true;
+                try {
+                    const hours = Math.floor(totalMinutes / 60); const minutes = totalMinutes % 60;
+                    const fd = new FormData();
+                    fd.append('Date', cairoOrLocalYmd());
+                    fd.append('Hours', hours.toString()); fd.append('Minutes', minutes.toString());
+                    fd.append('Notes', notes || `Focus session: ${hours}h ${minutes}m`);
+                    fd.append('Source', 'timer');
+                    if (timerRunId) fd.append('TimerRunId', timerRunId);
+                    const token = getDashboardAntiforgeryToken();
+                    const r = await fetch('/Sessions/Add', { method: 'POST', body: fd,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest', ...(token ? { 'RequestVerificationToken': token } : {}) } });
+                    if (r.ok) {
+                        const ct = r.headers.get('content-type') || '';
+                        if (ct.includes('application/json')) { const j = await r.json(); if (!j.success) { showNotification(j.message || 'Could not log.', 'error'); return false; } }
+                        showNotification('Focus session logged.', 'success');
+                        await updateDashboardData();
+                        if (window.refreshNotificationBadge) window.refreshNotificationBadge();
+                        return true;
+                    }
+                    showNotification('Could not log focus session.', 'error'); return false;
+                } catch (e) { console.error(e); showNotification('Could not log focus session.', 'error'); return false; }
+                finally { focusLogInFlight = false; }
+            }
+
+            async function finishAndLog(includeBreak, soundAlreadyPlayed) {
+                if (!state || !state.focusTotalSeconds) { resetState(); return; }
+                const uF = Math.max(0, state.focusTotalSeconds - (state.focusRemainingSeconds || 0));
+                const uB = Math.max(0, (state.breakTotalSeconds || 0) - (state.breakRemainingSeconds || 0));
+                const bM = uB > 0 ? Math.round(uB / 60) : 0;
+                const tM = includeBreak ? Math.max(1, Math.round((uF + uB) / 60)) : Math.max(1, Math.round(uF / 60));
+                const notes = state.notes || '';
+
+                if (tM < 10) {
+                    if (!soundAlreadyPlayed) playSound('finish');
+                    showNotification('Focus sessions shorter than 10 minutes are not logged.', 'info');
+                    resetState(); return;
+                }
+                const ok = await logFocusSession(tM, bM, notes, state.timerRunId);
+                if (ok) { if (!soundAlreadyPlayed) playSound('finish'); }
+                if (document.hidden) { state = state || {}; state.showFinishedBanner = true; saveState(); }
+                else if (finishedBanner) finishedBanner.style.display = 'flex';
+                resetState();
+            }
+
+            function resetState() {
+                state = { mode: 'idle' }; saveState();
+                if (worker) { worker.terminate(); worker = null; }
+                updateStatusUi();
+                if (notesInput) notesInput.value = '';
+            }
+
+            function endSession() { finishAndLog(false, false); }
+
+            if (startBtn) {
+                startBtn.addEventListener('click', startNewSession);
+                if (pauseBtn)  pauseBtn.addEventListener('click', pauseSession);
+                if (resumeBtn) resumeBtn.addEventListener('click', resumeSession);
+                if (endBtn)    endBtn.addEventListener('click', endSession);
+                if (notesInput) notesInput.addEventListener('input', () => { if (notesError) notesError.style.display = 'none'; });
+
+                state = loadState();
+                if (!state || (state.mode !== 'focus' && state.mode !== 'break')) {
+                    state = { mode: 'idle' }; saveState();
+                } else {
+                    if (notesInput && state.notes) notesInput.value = state.notes;
+                    if (state.isRunning) {
+                        recalcRemaining();
+                        saveState();
+                        const rem = ((state.focusRemainingSeconds || 0) + (state.breakRemainingSeconds || 0)) * 1000;
+                        if (rem > 0) {
+                            startWorker(rem);
+                        } else {
+                            // Session ended while page was closed.
+                            // Reset UI to idle immediately (synchronously) so the page loads cleanly,
+                            // then log the completed session in the background.
+                            const snap = Object.assign({}, state);
+                            state = { mode: 'idle' }; saveState();
+                            if (notesInput) notesInput.value = '';
+                            (async () => {
+                                try {
+                                    const uF = Math.max(0, (snap.focusTotalSeconds || 0) - (snap.focusRemainingSeconds || 0));
+                                    const uB = Math.max(0, (snap.breakTotalSeconds || 0) - (snap.breakRemainingSeconds || 0));
+                                    const tM = Math.max(1, Math.round((uF + uB) / 60));
+                                    if (tM >= 10) {
+                                        const ok = await logFocusSession(tM, 0, snap.notes || '', snap.timerRunId);
+                                        if (ok) {
+                                            if (finishedBanner) finishedBanner.style.display = 'flex';
+                                            if (window.refreshNotificationBadge) window.refreshNotificationBadge();
+                                        }
+                                    }
+                                } catch (_) {}
+                            })();
+                        }
+                    }
+                }
+                updateStatusUi();
+            }
+        })();
+
     </script>
 }
