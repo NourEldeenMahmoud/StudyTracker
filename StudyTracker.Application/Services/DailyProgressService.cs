@@ -7,10 +7,10 @@ namespace StudyTracker.Services
 {
     public class DailyProgressService : IDailyProgressService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IApplicationDbContext _context;
         private readonly ILeaderboardService _leaderboardService;
 
-        public DailyProgressService(ApplicationDbContext context, ILeaderboardService leaderboardService)
+        public DailyProgressService(IApplicationDbContext context, ILeaderboardService leaderboardService)
         {
             _context = context;
             _leaderboardService = leaderboardService;

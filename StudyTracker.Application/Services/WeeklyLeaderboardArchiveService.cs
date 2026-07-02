@@ -9,7 +9,7 @@ namespace StudyTracker.Services
 {
     public class WeeklyLeaderboardArchiveService : IWeeklyLeaderboardArchiveService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IApplicationDbContext _context;
         private readonly ILeaderboardService _leaderboardService;
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
@@ -17,7 +17,7 @@ namespace StudyTracker.Services
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
-        public WeeklyLeaderboardArchiveService(ApplicationDbContext context, ILeaderboardService leaderboardService)
+        public WeeklyLeaderboardArchiveService(IApplicationDbContext context, ILeaderboardService leaderboardService)
         {
             _context = context;
             _leaderboardService = leaderboardService;

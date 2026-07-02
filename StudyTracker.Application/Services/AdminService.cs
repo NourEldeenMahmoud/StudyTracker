@@ -9,13 +9,13 @@ namespace StudyTracker.Services
 {
     public class AdminService : IAdminService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IApplicationDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILeaderboardService _leaderboardService;
         private readonly IImageService _imageService;
 
         public AdminService(
-            ApplicationDbContext context,
+            IApplicationDbContext context,
             UserManager<ApplicationUser> userManager,
             ILeaderboardService leaderboardService,
             IImageService imageService)

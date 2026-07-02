@@ -8,9 +8,9 @@ namespace StudyTracker.Services
 {
     public class DashboardService : IDashboardService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IApplicationDbContext _context;
 
-        public DashboardService(ApplicationDbContext context)
+        public DashboardService(IApplicationDbContext context)
         {
             _context = context;
         }

@@ -9,10 +9,10 @@ namespace StudyTracker.Services
 {
     public class StudySessionService : IStudySessionService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IApplicationDbContext _context;
         private readonly IMemoryCache _memoryCache;
 
-        public StudySessionService(ApplicationDbContext context, IMemoryCache memoryCache)
+        public StudySessionService(IApplicationDbContext context, IMemoryCache memoryCache)
         {
             _context = context;
             _memoryCache = memoryCache;

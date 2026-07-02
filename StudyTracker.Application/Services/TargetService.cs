@@ -8,9 +8,9 @@ namespace StudyTracker.Services
 {
     public class TargetService : ITargetService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IApplicationDbContext _context;
 
-        public TargetService(ApplicationDbContext context)
+        public TargetService(IApplicationDbContext context)
         {
             _context = context;
         }
