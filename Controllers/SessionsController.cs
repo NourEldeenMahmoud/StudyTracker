@@ -252,7 +252,7 @@ namespace StudyTracker.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,SuperAdmin")]
+        [Authorize]
         public async Task<IActionResult> Delete(Guid id)
         {
             var user = await _userManager.GetUserAsync(User);
