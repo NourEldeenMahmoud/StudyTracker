@@ -6,9 +6,9 @@ namespace StudyTracker.Services
 {
     public class NotificationService : INotificationService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IApplicationDbContext _context;
 
-        public NotificationService(ApplicationDbContext context)
+        public NotificationService(IApplicationDbContext context)
         {
             _context = context;
         }

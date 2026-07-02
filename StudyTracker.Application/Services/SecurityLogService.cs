@@ -7,9 +7,9 @@ namespace StudyTracker.Services
 {
     public class SecurityLogService : ISecurityLogService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IApplicationDbContext _context;
 
-        public SecurityLogService(ApplicationDbContext context)
+        public SecurityLogService(IApplicationDbContext context)
         {
             _context = context;
         }

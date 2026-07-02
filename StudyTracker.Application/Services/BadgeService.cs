@@ -9,7 +9,7 @@ namespace StudyTracker.Services
 {
     public class BadgeService : IBadgeService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IApplicationDbContext _context;
         private readonly IWeeklyLeaderboardArchiveService _archiveService;
         private readonly UserManager<ApplicationUser> _userManager;
 
@@ -36,7 +36,7 @@ namespace StudyTracker.Services
             .ToDictionary(g => g.Key, g => g.Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase));
 
 
-        public BadgeService(ApplicationDbContext context, IWeeklyLeaderboardArchiveService archiveService, UserManager<ApplicationUser> userManager)
+        public BadgeService(IApplicationDbContext context, IWeeklyLeaderboardArchiveService archiveService, UserManager<ApplicationUser> userManager)
         {
             _context = context;
             _archiveService = archiveService;
