@@ -208,7 +208,7 @@ publish/
 Properties/PublishProfiles/
 
 # Uploads folder (if using external path)
-C:\Uploads\
+# C:\Uploads\
 uploads/
 
 # Database files
