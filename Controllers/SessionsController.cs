@@ -26,7 +26,7 @@ namespace StudyTracker.Controllers
             _notificationService = notificationService;
         }
 
-        [Authorize(Roles = "Admin,SuperAdmin")]
+        [Authorize]
         public async Task<IActionResult> Index(DateOnly? startDate, DateOnly? endDate)
         {
             var user = await _userManager.GetUserAsync(User);
@@ -150,7 +150,7 @@ namespace StudyTracker.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Admin,SuperAdmin")]
+        [Authorize]
         public async Task<IActionResult> Edit(Guid id)
         {
             var user = await _userManager.GetUserAsync(User);
@@ -189,7 +189,7 @@ namespace StudyTracker.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,SuperAdmin")]
+        [Authorize]
         public async Task<IActionResult> Edit(AddSessionViewModel model, Guid id)
         {
             if (!ModelState.IsValid)
@@ -252,7 +252,7 @@ namespace StudyTracker.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Admin,SuperAdmin")]
+        [Authorize]
         public async Task<IActionResult> Delete(Guid id)
         {
             var user = await _userManager.GetUserAsync(User);
